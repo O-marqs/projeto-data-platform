@@ -11,6 +11,11 @@ EXPECTED_ROWS = [
     (2, "Teste", datetime(2026, 9, 16, 0, 0, 1)),
     (3, "Iceberg", datetime(2026, 9, 16, 0, 0, 2)),
 ]
+EXPECTED_VALUES = [
+    (1, "Lucas", "2026-09-16 00:00:00"),
+    (2, "Teste", "2026-09-16 00:00:01"),
+    (3, "Iceberg", "2026-09-16 00:00:02"),
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,18 +57,26 @@ def main() -> None:
             else:
                 print(f"FND01_WRITE=PASS existing_rows={existing_count}")
 
-        if args.mode == "write-read":
-            namespaces = {row.namespace for row in spark.sql(f"SHOW NAMESPACES IN {catalog}").collect()}
-            if namespace not in namespaces:
-                raise RuntimeError(f"namespace {namespace} was not found")
+        namespaces = {
+            row.namespace for row in spark.sql(f"SHOW NAMESPACES IN {catalog}").collect()
+        }
+        if namespace not in namespaces:
+            raise RuntimeError(f"namespace {namespace} was not found")
+
+        tables = {
+            row.tableName for row in spark.sql(f"SHOW TABLES IN {catalog}.{namespace}").collect()
+        }
+        if table_name not in tables:
+            raise RuntimeError(f"table {table_name} was not found in {catalog}.{namespace}")
 
         rows = [
             tuple(row)
             for row in spark.sql(
-                f"SELECT id, name, CAST(created_at AS STRING) AS created_at FROM {table} ORDER BY id"
+                f"SELECT id, name, date_format(created_at, 'yyyy-MM-dd HH:mm:ss') AS created_at "
+                f"FROM {table} ORDER BY id"
             ).collect()
         ]
-        if len(rows) != 3 or [row[0:2] for row in rows] != [(1, "Lucas"), (2, "Teste"), (3, "Iceberg")]:
+        if rows != EXPECTED_VALUES:
             raise RuntimeError(f"unexpected table contents: {rows}")
 
         print(f"FND01_NAMESPACE=PASS name={namespace} persisted={args.mode == 'verify'}")

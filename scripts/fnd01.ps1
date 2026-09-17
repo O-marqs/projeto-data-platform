@@ -72,7 +72,15 @@ function Run-Spark {
 }
 
 function Verify-Storage {
-    Invoke-Compose run --rm rustfs-bucket-init -c 'aws s3 ls --recursive s3://$RUSTFS_BUCKET'
+    $listing = @(Invoke-Compose run --rm rustfs-bucket-init -c 'aws s3 ls --recursive s3://$RUSTFS_BUCKET')
+    $objectNames = $listing | ForEach-Object { ($_ -split '\s+', 4)[3] } | Where-Object { $_ }
+    $dataObjects = @($objectNames | Where-Object { $_ -match '^.+/data/.+\.parquet$' })
+    $metadataObjects = @($objectNames | Where-Object { $_ -match '^.+/metadata/.+\.(metadata\.json|avro)$' })
+    if ($dataObjects.Count -eq 0 -or $metadataObjects.Count -eq 0) {
+        throw "RustFS nao contem os objetos Iceberg esperados (data Parquet e metadata Iceberg)."
+    }
+    $listing | ForEach-Object { Write-Output $_ }
+    Write-Output "FND01_STORAGE=PASS data_parquet=$($dataObjects.Count) metadata=$($metadataObjects.Count)"
 }
 
 switch ($Action) {

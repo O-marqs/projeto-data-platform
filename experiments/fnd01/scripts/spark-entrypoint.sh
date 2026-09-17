@@ -6,9 +6,11 @@ exec /opt/spark/bin/spark-submit \
   --conf "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}=org.apache.iceberg.spark.SparkCatalog" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}.type=rest" \
+  --conf "spark.sql.catalog.${ICEBERG_CATALOG}.rest.auth.type=oauth2" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}.uri=${POLARIS_INTERNAL_ENDPOINT}" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}.oauth2-server-uri=${POLARIS_INTERNAL_ENDPOINT}/v1/oauth/tokens" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}.token-refresh-enabled=false" \
+  --conf "spark.sql.catalog.${ICEBERG_CATALOG}.rest-metrics-reporting-enabled=false" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}.warehouse=${POLARIS_CATALOG}" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}.credential=${POLARIS_ROOT_CLIENT_ID}:${POLARIS_ROOT_CLIENT_SECRET}" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}.scope=PRINCIPAL_ROLE:ALL" \

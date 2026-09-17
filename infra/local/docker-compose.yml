@@ -146,8 +146,6 @@ services:
     depends_on:
       polaris-catalog-init:
         condition: service_completed_successfully
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
       ICEBERG_VERSION: ${ICEBERG_VERSION}
       ICEBERG_CATALOG: ${ICEBERG_CATALOG}

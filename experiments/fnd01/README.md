@@ -25,6 +25,7 @@ O aceite principal e provar que namespace, tabela Iceberg e dados continuam disp
 ## Arquitetura do laboratorio
 
 - RustFS expoe S3 em `localhost:9000` e console em `localhost:9001`.
+- Os servicos usam `http://rustfs:9000` na rede Docker; `localhost:9000` fica reservado ao acesso pelo host.
 - PostgreSQL persiste o metastore JDBC do Polaris em um volume nomeado.
 - Polaris expoe o catalogo REST em `localhost:8181` e health/metricas em `localhost:8182`.
 - `polaris-catalog-init` cria `fnd01_catalog` de forma idempotente, apontando para o bucket `data-platform`.
@@ -116,3 +117,4 @@ Para destruir tambem o PostgreSQL e o RustFS persistentes:
 - O Spark executa em um container sob demanda; nao ha cluster, scheduler ou pipeline de producao.
 - O armazenamento e um volume local unico, sem alta disponibilidade, TLS ou backup.
 - A imagem RustFS escolhida e uma release alpha fixada; isso deve ser revisitado antes de qualquer uso compartilhado.
+- O laboratorio pressupoe Docker Compose v2 com rede entre servicos; endpoints publicados em `localhost` sao destinados ao host, nao a comunicacao entre containers.
