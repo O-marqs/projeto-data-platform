@@ -57,4 +57,4 @@ Nao existe migracao de catalogo nesta etapa. O repositorio anterior continha ape
 
 ## Evidencia esperada
 
-O aceite exige `docker compose config`, healthchecks verdes, escrita/leitura Spark, objetos no bucket e leitura bem-sucedida apos `docker compose stop` seguido de nova subida. Se o ambiente nao conseguir executar Docker ou baixar dependencias, o resultado deve ser reportado como `IMPLEMENTADO, MAS NÃO EXECUTADO`.
+O aceite exige `docker compose config`, healthchecks verdes, escrita/leitura Spark, objetos no bucket e leitura bem-sucedida apos `docker compose stop` seguido de nova subida. A evidencia executada e versionada em [experiments/fnd01/evidence/fnd01-validation-2026-09-17.md](../../experiments/fnd01/evidence/fnd01-validation-2026-09-17.md). Se o ambiente nao conseguir executar Docker ou baixar dependencias, o resultado deve ser reportado como `IMPLEMENTADO, MAS NÃO EXECUTADO`.

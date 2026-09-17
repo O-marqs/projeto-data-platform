@@ -34,6 +34,8 @@ O aceite principal e provar que namespace, tabela Iceberg e dados continuam disp
 
 Versoes e referencias estao em [docs/architecture/fnd01-version-matrix.md](../../docs/architecture/fnd01-version-matrix.md).
 
+A evidencia versionada da ultima validacao esta em [evidence/fnd01-validation-2026-09-17.md](evidence/fnd01-validation-2026-09-17.md).
+
 ## Pre-requisitos
 
 - Docker Desktop em execucao.

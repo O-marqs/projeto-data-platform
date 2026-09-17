@@ -30,7 +30,7 @@ Fonte: Jira `PDP - Projeto Data Platform` em <https://marqs.atlassian.net>.
 - Infraestrutura: [`infra/local/docker-compose.yml`](../../infra/local/docker-compose.yml)
 - Matriz de versoes: [`docs/architecture/fnd01-version-matrix.md`](../architecture/fnd01-version-matrix.md)
 - ADR: [`docs/adr/ADR-020-fnd01-catalogo-local.md`](../adr/ADR-020-fnd01-catalogo-local.md)
-- Evidencia: escrita, leitura, listagem de objetos no RustFS e leitura apos reinicio retornaram `PASS`.
+- Evidencia: [fnd01-validation-2026-09-17.md](../../experiments/fnd01/evidence/fnd01-validation-2026-09-17.md) registra escrita, leitura, listagem de objetos no RustFS, persistencia apos reinicio, seguranca e consumo medido.
 
 ## Links documentais citados no Jira
 
