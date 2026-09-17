@@ -27,6 +27,8 @@ libs/
   platform-contracts/    Contratos, specs e modelos compartilhados
 infra/
   local/                 Ambiente local, containers e bootstrap
+experiments/
+  fnd01/                 Spike do laboratorio Spark + Iceberg + Polaris + RustFS
 docs/
   adr/                   Decisoes arquiteturais
   jira/                  Rastreabilidade com Jira
@@ -41,14 +43,25 @@ tests/
 - Nome: `Projeto Data Platform`
 - Backlog inicial: [docs/jira/backlog.md](docs/jira/backlog.md)
 
+## Primeiro laboratorio
+
+O card `FND-01` fecha o primeiro laboratorio reproduzivel do caminho:
+
+```text
+PySpark -> Apache Iceberg -> Apache Polaris -> RustFS
+                         \-> PostgreSQL (persistencia do catalogo)
+```
+
+O experimento nao implementa ainda Control Plane, portal, Airflow, Trino, dbt ou observabilidade distribuida. Consulte [experiments/fnd01/README.md](experiments/fnd01/README.md) para executar o smoke test e provar a persistencia apos restart.
+
 ## Primeiros passos planejados
 
 1. Fechar a fundacao do MVP 00: ambiente local, CI, convencoes e ADRs minimas.
 2. Criar fixture do primeiro pipeline.
-3. Definir runtime local e armazenamento para a primeira demonstracao.
+3. Evoluir o laboratorio FND-01 para o primeiro pipeline batch.
 4. Implementar o caminho PostgreSQL -> Bronze/Silver/Gold.
 5. Registrar evidencias por issue Jira e commit.
 
 ## Status
 
-Este repositório esta na fase de fundacao. A estrutura inicial foi criada para receber implementacao progressiva, sem assumir que os MVPs do Jira ja estao concluidos.
+FND-01 esta validado como spike local: a execucao completa do Docker gravou e leu a tabela Iceberg e repetiu a leitura apos restart sem remover os volumes persistentes.

@@ -22,6 +22,16 @@ Fonte: Jira `PDP - Projeto Data Platform` em <https://marqs.atlassian.net>.
 - Separar artefatos executaveis de documentacao e evidencias.
 - Registrar ADRs antes de escolhas com impacto em runtime, catalogo, storage ou contrato.
 
+## FND-01 - Spike local validado
+
+- Status: PASS no laboratorio local ponta a ponta.
+- Fluxo validado: PySpark/Spark SQL -> Iceberg REST Catalog -> Apache Polaris -> RustFS, com PostgreSQL persistindo o estado do Polaris.
+- Experimento: [`experiments/fnd01/`](../../experiments/fnd01/README.md)
+- Infraestrutura: [`infra/local/docker-compose.yml`](../../infra/local/docker-compose.yml)
+- Matriz de versoes: [`docs/architecture/fnd01-version-matrix.md`](../architecture/fnd01-version-matrix.md)
+- ADR: [`docs/adr/ADR-020-fnd01-catalogo-local.md`](../adr/ADR-020-fnd01-catalogo-local.md)
+- Evidencia: escrita, leitura, listagem de objetos no RustFS e leitura apos reinicio retornaram `PASS`.
+
 ## Links documentais citados no Jira
 
 - DP 01 - Visao do produto, escopo e metricas

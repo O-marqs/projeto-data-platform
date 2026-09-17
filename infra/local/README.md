@@ -1,11 +1,14 @@
 # Infra Local
 
-Area reservada para ambiente local e bootstrap.
+Ambiente local do experimento `FND-01`.
 
-Componentes candidatos:
+Componentes ativos:
 
-- PostgreSQL para fonte e metadados locais.
-- Object storage compativel com S3.
-- Catalogo Iceberg/Polaris.
-- Spark, Trino e dbt conforme decisao de runtime.
-- Observabilidade minima para desenvolvimento.
+- `rustfs`: object storage S3-compatible com volume persistente.
+- `postgres`: persistencia JDBC do Polaris com volume persistente.
+- `polaris-bootstrap`: inicializacao do realm e credencial administrativa.
+- `polaris`: catalogo REST Iceberg.
+- `polaris-catalog-init`: criacao idempotente do catalogo apontando para RustFS.
+- `spark`: servico sob demanda para o experimento PySpark/Iceberg.
+
+O Compose esta em [docker-compose.yml](docker-compose.yml). Os volumes sao nomeados e sobrevivem a `docker compose down`; use `down -v` somente para limpar o laboratorio inteiro.

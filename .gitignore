@@ -21,6 +21,8 @@ data/
 tmp/
 *.db
 *.sqlite
+infra/local/postgres/data/
+infra/local/rustfs/data/
 
 # IDE and OS
 .idea/
