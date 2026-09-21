@@ -32,7 +32,7 @@ O aceite principal e provar que namespace, tabela Iceberg e dados continuam disp
 - Spark roda sob demanda em container e usa `iceberg-spark-runtime-3.5_2.12` mais `iceberg-aws-bundle`.
 - O experimento cria `polaris.lab.fnd01_test` e grava tres registros.
 
-Versoes e referencias estao em [docs/architecture/fnd01-version-matrix.md](../../docs/architecture/fnd01-version-matrix.md).
+Versoes e referencias estao em [docs/architecture/fnd01-version-matrix.md](../../docs/architecture/fnd01-version-matrix.md). A matriz de homologacao com digests, checksums Maven e limites de portabilidade esta em [docs/architecture/fnd02-version-matrix.md](../../docs/architecture/fnd02-version-matrix.md).
 
 A evidencia versionada da ultima validacao esta em [evidence/fnd01-validation-2026-09-17.md](evidence/fnd01-validation-2026-09-17.md).
 
@@ -42,6 +42,10 @@ A evidencia versionada da ultima validacao esta em [evidence/fnd01-validation-20
 - Docker Compose v2.
 - PowerShell 5+ ou PowerShell 7+.
 - Internet disponivel para baixar as imagens e dependencias Maven do Iceberg na primeira execucao.
+
+O Compose usa digests Docker fixados por default. Os nomes de volume do FND-01
+continuam sendo `pdp_fnd01_postgres_data` e `pdp_fnd01_rustfs_data`; uma
+execucao limpa e isolada deve usar o script FND-02 descrito abaixo.
 
 ## Como executar
 
@@ -111,6 +115,19 @@ Para destruir tambem o PostgreSQL e o RustFS persistentes:
 ```
 
 `clean` remove os volumes nomeados `pdp_fnd01_postgres_data` e `pdp_fnd01_rustfs_data`; depois disso o laboratorio volta a ser uma instalacao limpa.
+
+## Instalacao limpa do FND-02
+
+Para repetir o laboratorio usando um projeto Compose, credenciais sinteticas e
+volumes novos, sem depender dos recursos do FND-01:
+
+```powershell
+.\scripts\fnd02-clean-validation.ps1
+```
+
+O script remove somente os recursos do projeto temporario ao terminar. Ele nao
+remove os volumes padrao do FND-01. Use `-KeepVolumes` apenas para inspecionar
+os objetos antes da limpeza.
 
 ## Limites e dividas tecnicas
 

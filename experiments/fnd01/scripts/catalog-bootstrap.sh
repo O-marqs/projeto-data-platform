@@ -1,43 +1,50 @@
 #!/bin/sh
 set -eu
 
-apk add --no-cache jq >/dev/null
-
 base_url="${POLARIS_INTERNAL_ENDPOINT}"
 management_base="${base_url%/catalog}/management"
-token_response=$(curl --fail-with-body -sS -X POST "${base_url}/v1/oauth/tokens" \
-  --user "${CLIENT_ID}:${CLIENT_SECRET}" \
-  -H "Polaris-Realm: ${POLARIS_REALM}" \
-  -d grant_type=client_credentials \
-  -d scope=PRINCIPAL_ROLE:ALL)
-token=$(printf '%s' "$token_response" | jq -er '.access_token')
-
-catalog_url="${management_base}/v1/catalogs/${POLARIS_CATALOG}"
-if curl --fail -sS -o /dev/null \
-  -H "Authorization: Bearer ${token}" \
-  -H "Polaris-Realm: ${POLARIS_REALM}" \
-  "$catalog_url"; then
-  echo "Polaris catalog already exists"
-  exit 0
+token=""
+for attempt in $(seq 1 30); do
+  token_response=$(curl --fail -sS -X POST "${base_url}/v1/oauth/tokens" \
+    --user "${CLIENT_ID}:${CLIENT_SECRET}" \
+    -H "Polaris-Realm: ${POLARIS_REALM}" \
+    -d grant_type=client_credentials \
+    -d scope=PRINCIPAL_ROLE:ALL 2>/dev/null || true)
+  token=$(printf '%s' "$token_response" | tr -d '\r\n' | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  if [ -n "$token" ]; then
+    break
+  fi
+  sleep 2
+done
+if [ -z "$token" ]; then
+  echo "Polaris token response did not contain access_token" >&2
+  exit 1
 fi
 
-payload=$(jq -n \
-  --arg catalog "$POLARIS_CATALOG" \
-  --arg location "s3://${RUSTFS_BUCKET}" \
-  --arg endpoint "$RUSTFS_CLIENT_ENDPOINT" \
-  --arg endpoint_internal "$RUSTFS_INTERNAL_ENDPOINT" \
-  --arg region "$RUSTFS_REGION" \
-  '{catalog: {name: $catalog, type: "INTERNAL", readOnly: false,
-    properties: {"default-base-location": $location},
-    storageConfigInfo: {storageType: "S3", allowedLocations: [$location],
-      endpoint: $endpoint, endpointInternal: $endpoint_internal,
-      pathStyleAccess: true, stsUnavailable: true, region: $region}}}')
+catalog_url="${management_base}/v1/catalogs/${POLARIS_CATALOG}"
+payload=$(printf '{"catalog":{"name":"%s","type":"INTERNAL","readOnly":false,"properties":{"default-base-location":"s3://%s"},"storageConfigInfo":{"storageType":"S3","allowedLocations":["s3://%s"],"endpoint":"%s","endpointInternal":"%s","pathStyleAccess":true,"stsUnavailable":true,"region":"%s"}}}' \
+  "$POLARIS_CATALOG" "$RUSTFS_BUCKET" "$RUSTFS_BUCKET" "$RUSTFS_CLIENT_ENDPOINT" "$RUSTFS_INTERNAL_ENDPOINT" "$RUSTFS_REGION")
 
-curl --fail-with-body -sS -X POST "${management_base}/v1/catalogs" \
-  -H "Authorization: Bearer ${token}" \
-  -H "Polaris-Realm: ${POLARIS_REALM}" \
-  -H "Accept: application/json" \
-  -H "Content-Type: application/json" \
-  -d "$payload" >/dev/null
+for attempt in $(seq 1 30); do
+  if curl --fail -sS -o /dev/null \
+    -H "Authorization: Bearer ${token}" \
+    -H "Polaris-Realm: ${POLARIS_REALM}" \
+    "$catalog_url" 2>/dev/null; then
+    echo "Polaris catalog already exists"
+    exit 0
+  fi
 
-echo "Polaris catalog created"
+  if curl --fail -sS -X POST "${management_base}/v1/catalogs" \
+    -H "Authorization: Bearer ${token}" \
+    -H "Polaris-Realm: ${POLARIS_REALM}" \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json" \
+    -d "$payload" >/dev/null 2>/dev/null; then
+    echo "Polaris catalog created"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "Polaris catalog was not ready after retries" >&2
+exit 1

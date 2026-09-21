@@ -52,7 +52,7 @@ PySpark -> Apache Iceberg -> Apache Polaris -> RustFS
                          \-> PostgreSQL (persistencia do catalogo)
 ```
 
-O experimento nao implementa ainda Control Plane, portal, Airflow, Trino, dbt ou observabilidade distribuida. Consulte [experiments/fnd01/README.md](experiments/fnd01/README.md) para executar o smoke test e provar a persistencia apos restart.
+O experimento nao implementa ainda Control Plane, portal, Airflow, Trino, dbt ou observabilidade distribuida. Consulte [experiments/fnd01/README.md](experiments/fnd01/README.md) para executar o smoke test e provar a persistencia apos restart. A homologacao de versoes e a instalacao limpa do FND-02 estao documentadas em [docs/architecture/fnd02-version-matrix.md](docs/architecture/fnd02-version-matrix.md).
 
 ## Primeiros passos planejados
 
