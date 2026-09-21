@@ -1,0 +1,173 @@
+services:
+  rustfs:
+    image: rustfs/rustfs:${RUSTFS_VERSION}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_OBS_LOGGER_LEVEL: ${LOG_LEVEL}
+    volumes:
+      - fnd01_rustfs_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://127.0.0.1:9000/health && curl --fail http://127.0.0.1:9001/rustfs/console/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_INITDB_ARGS: "--encoding UTF8 --data-checksums"
+    volumes:
+      - fnd01_postgres_data:/var/lib/postgresql
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/create-polaris-schema.sql:/docker-entrypoint-initdb.d/create-polaris-schema.sql:ro
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rustfs-bucket-init:
+    image: amazon/aws-cli:${AWS_CLI_VERSION}
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
+      AWS_DEFAULT_REGION: ${RUSTFS_REGION}
+      AWS_ENDPOINT_URL: ${RUSTFS_INTERNAL_ENDPOINT}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        if ! aws s3api head-bucket --bucket "$${RUSTFS_BUCKET}" 2>/dev/null; then
+          echo "Creating RustFS bucket $${RUSTFS_BUCKET}";
+          aws s3 mb "s3://$${RUSTFS_BUCKET}";
+        else
+          echo "RustFS bucket already exists";
+        fi;
+        aws s3api head-bucket --bucket "$${RUSTFS_BUCKET}";
+        echo "RustFS bucket ready"
+
+  polaris-bootstrap:
+    image: apache/polaris-admin-tool:${POLARIS_ADMIN_VERSION}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POLARIS_PERSISTENCE_TYPE: relational-jdbc
+      POLARIS_PERSISTENCE_RELATIONAL_JDBC_DATABASE_TYPE: postgresql
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?currentSchema=polaris_schema
+      QUARKUS_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      QUARKUS_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      POLARIS_REALM: ${POLARIS_REALM}
+      POLARIS_ROOT_CLIENT_ID: ${POLARIS_ROOT_CLIENT_ID}
+      POLARIS_ROOT_CLIENT_SECRET: ${POLARIS_ROOT_CLIENT_SECRET}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        credentials_file=/tmp/polaris-bootstrap-credentials;
+        printf '{"%s":{"client-id":"%s","client-secret":"%s"}}\n' "$${POLARIS_REALM}" "$${POLARIS_ROOT_CLIENT_ID}" "$${POLARIS_ROOT_CLIENT_SECRET}" > "$${credentials_file}";
+        exec /opt/jboss/container/java/run/run-java.sh bootstrap --credentials-file="$${credentials_file}"
+
+  polaris:
+    image: apache/polaris:${POLARIS_VERSION}
+    ports:
+      - "8181:8181"
+      - "8182:8182"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rustfs-bucket-init:
+        condition: service_completed_successfully
+      polaris-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      POLARIS_PERSISTENCE_TYPE: relational-jdbc
+      POLARIS_PERSISTENCE_RELATIONAL_JDBC_DATABASE_TYPE: postgresql
+      POLARIS_PERSISTENCE_RELATIONAL_JDBC_MAX_RETRIES: 5
+      POLARIS_PERSISTENCE_RELATIONAL_JDBC_INITIAL_DELAY_IN_MS: 100
+      POLARIS_PERSISTENCE_RELATIONAL_JDBC_MAX_DURATION_IN_MS: 5000
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?currentSchema=polaris_schema
+      QUARKUS_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      QUARKUS_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      POLARIS_REALM_CONTEXT_REALMS: ${POLARIS_REALM}
+      AWS_REGION: ${RUSTFS_REGION}
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
+      QUARKUS_OTEL_SDK_DISABLED: "true"
+      'polaris.features."SUPPORTED_CATALOG_STORAGE_TYPES"': '["S3"]'
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8182/q/health"]
+      interval: 3s
+      timeout: 10s
+      retries: 30
+      start_period: 15s
+
+  polaris-catalog-init:
+    image: alpine/curl:${ALPINE_CURL_VERSION}
+    depends_on:
+      polaris:
+        condition: service_healthy
+    environment:
+      CLIENT_ID: ${POLARIS_ROOT_CLIENT_ID}
+      CLIENT_SECRET: ${POLARIS_ROOT_CLIENT_SECRET}
+      POLARIS_REALM: ${POLARIS_REALM}
+      POLARIS_CATALOG: ${POLARIS_CATALOG}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET}
+      RUSTFS_CLIENT_ENDPOINT: ${RUSTFS_ENDPOINT}
+      RUSTFS_INTERNAL_ENDPOINT: ${RUSTFS_INTERNAL_ENDPOINT}
+      RUSTFS_REGION: ${RUSTFS_REGION}
+      POLARIS_INTERNAL_ENDPOINT: ${POLARIS_INTERNAL_ENDPOINT}
+    volumes:
+      - ../../experiments/fnd01/scripts/catalog-bootstrap.sh:/usr/local/bin/catalog-bootstrap.sh:ro
+    entrypoint: ["/bin/sh"]
+    command: ["/usr/local/bin/catalog-bootstrap.sh"]
+
+  spark:
+    image: apache/spark:${SPARK_VERSION}
+    profiles: ["fnd01"]
+    depends_on:
+      polaris-catalog-init:
+        condition: service_completed_successfully
+    environment:
+      ICEBERG_VERSION: ${ICEBERG_VERSION}
+      ICEBERG_CATALOG: ${ICEBERG_CATALOG}
+      ICEBERG_NAMESPACE: ${ICEBERG_NAMESPACE}
+      ICEBERG_TABLE: ${ICEBERG_TABLE}
+      POLARIS_INTERNAL_ENDPOINT: ${POLARIS_INTERNAL_ENDPOINT}
+      POLARIS_REALM: ${POLARIS_REALM}
+      POLARIS_CATALOG: ${POLARIS_CATALOG}
+      POLARIS_ROOT_CLIENT_ID: ${POLARIS_ROOT_CLIENT_ID}
+      POLARIS_ROOT_CLIENT_SECRET: ${POLARIS_ROOT_CLIENT_SECRET}
+      RUSTFS_ENDPOINT: ${RUSTFS_ENDPOINT}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_REGION: ${RUSTFS_REGION}
+    volumes:
+      - ../../experiments/fnd01/scripts/spark-entrypoint.sh:/opt/fnd01/entrypoint.sh:ro
+      - ../../experiments/fnd01/src/run_fnd01.py:/opt/fnd01/run_fnd01.py:ro
+    entrypoint: ["/opt/fnd01/entrypoint.sh"]
+    command: ["--mode", "write-read"]
+
+volumes:
+  fnd01_rustfs_data:
+    name: pdp_fnd01_rustfs_data
+  fnd01_postgres_data:
+    name: pdp_fnd01_postgres_data
