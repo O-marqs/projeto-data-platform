@@ -2,7 +2,7 @@
 
 Status: `FND-02 = CONCLUIDO`
 
-This evidence validates the version homologation and reproducibility scope for the local data platform laboratory. The validated commit is filled after the final commit is created.
+This evidence validates the version homologation and reproducibility scope for the local data platform laboratory.
 
 ## Environment
 
@@ -14,7 +14,7 @@ This evidence validates the version homologation and reproducibility scope for t
 | Docker architecture | linux/amd64 through Docker Desktop/WSL2 |
 | Execution date | 2026-09-21 |
 | Repository | `O-marqs/projeto-data-platform` |
-| Validated commit | `<filled after final commit>` |
+| Validated commit | `5c746ff` |
 | Clean-install project | `pdp-fnd02-86d36067104d` |
 | Persistent test project | `pdp-fnd01` |
 
@@ -134,4 +134,3 @@ The timing run used images already present locally. The isolated clean-install t
 - RustFS remains the pinned alpha release selected by the existing FND-01 laboratory; upgrading it would be a separate compatibility decision.
 - Resource values are local samples on a developer machine, not production capacity limits or a FinOps baseline.
 - Airflow and its providers were intentionally not installed or implemented in FND-02.
-
