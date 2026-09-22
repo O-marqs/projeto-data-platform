@@ -50,7 +50,13 @@ As variaveis `CONTROL_*` ficam no `.env.example`. A conexao do Control Plane e i
 - Porta local do banco: `5433` por padrao.
 - Porta local da API: `8000` por padrao.
 
-Os valores do exemplo sao sinteticos e exclusivos do desenvolvimento local. A aplicacao recebe `CONTROL_DATABASE_URL` por ambiente e nao usa host, porta, usuario ou senha do PostgreSQL do Polaris como fallback.
+Os valores do exemplo sao sinteticos e exclusivos do desenvolvimento local. A
+`CONTROL_DATABASE_URL` do `.env.example` representa uma conexao feita a partir
+do host (`localhost:5433`). O Compose substitui essa referencia dentro dos
+containers pela conexao interna `control-db:5432/control_db`; no modo de testes,
+o script injeta `control_test_db` e o hostname interno correspondente. A
+aplicacao recebe `CONTROL_DATABASE_URL` por ambiente e nao usa host, porta,
+usuario ou senha do PostgreSQL do Polaris como fallback.
 
 ## Subir somente o Control Plane
 
@@ -79,7 +85,19 @@ Uma migration reaplicada no mesmo banco nao altera o schema quando a versao ja e
 ./scripts/fnd04.ps1 test
 ```
 
-O comando inicia o banco e a API, reaplica a migration para provar idempotencia e executa os testes em um container separado. Os testes cobrem liveness, readiness, indisponibilidade do banco, unicidade de Domain, Team e DataProduct e foreign keys obrigatorias.
+O comando nunca testa contra o projeto normal `pdp-fnd04`. Ele cria o projeto
+descartavel `pdp-fnd04-test`, o database `control_test_db`, o volume
+`pdp-fnd04-test_control_postgres_data` e as portas `8001` (API) e `5434` (DB).
+Antes de iniciar, o script remove somente esses recursos de teste; ao final,
+remove novamente containers, rede e volume de teste. O projeto normal, seu
+database `control_db`, volume `pdp-fnd04_control_postgres_data` e portas
+`8000/5433` nao participam da suite.
+
+O fixture tambem bloqueia a execucao se `CONTROL_APP_ENV` nao for `test` ou se
+a URL resolvida nao apontar para `control_test_db`. Assim, os `DELETE`s de
+limpeza so podem alcançar o banco descartavel. Os testes cobrem liveness,
+readiness, indisponibilidade do banco, unicidade de Domain, Team e DataProduct
+e foreign keys obrigatorias.
 
 ## Health e readiness
 

@@ -102,7 +102,7 @@ Para o FND-04, use o Compose isolado do Control Plane:
 ./scripts/fnd04.ps1 down
 ```
 
-O FND-04 usa o database `control_db`, um volume nomeado pelo projeto Compose (`pdp-fnd04_control_postgres_data` por padrao) e portas locais distintas. `clean` do FND-04 nao remove recursos do FND-01/FND-02.
+O ambiente normal do FND-04 usa o database `control_db`, o volume `pdp-fnd04_control_postgres_data` e portas locais `8000/5433`. O comando `fnd04.ps1 test` usa um ambiente descartavel separado (`pdp-fnd04-test`, `control_test_db`, volume `pdp-fnd04-test_control_postgres_data`, portas `8001/5434`) e o remove ao terminar. `clean` do ambiente normal nao remove recursos do FND-01/FND-02.
 
 ## Contribuicao
 
