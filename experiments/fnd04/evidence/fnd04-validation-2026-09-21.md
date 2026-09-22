@@ -12,8 +12,8 @@ Validacao da base FastAPI do Control Plane, do Control DB dedicado, da primeira
 - Sistema operacional: Windows com Docker Desktop e backend Linux containers.
 - Shell: PowerShell.
 - Docker Compose: v2, validado por `docker compose config`.
-- Data da execucao: 2026-09-21.
-- Commit de codigo validado: `1ecf4bc376293c753922137444cd112607c09001`.
+- Data da execucao: 2026-09-22.
+- Commit de codigo validado: `6b40ad7`.
 - Projeto Compose de validacao: `pdp-fnd04-validation`.
 - Configuracao: `.env.example`, somente com valores sinteticos.
 
@@ -160,3 +160,65 @@ Resultados medidos nesta revisão:
 Pendências não bloqueantes: a validação foi feita em Windows/Docker Desktop e
 não homologa Linux/macOS ou implantação em nuvem. O PR não implementa CRUD,
 autenticação, RBAC, pipelines, portal ou FND-05.
+
+## Correção de isolamento destrutivo dos testes
+
+Esta seção registra a validação da correção publicada no PR #4. O comando padrão
+`./scripts/fnd04.ps1 test` não usa o ambiente persistente de desenvolvimento:
+
+| Uso | Projeto Compose | Database | Volume | Portas locais |
+| --- | --- | --- | --- | --- |
+| Desenvolvimento | `pdp-fnd04` | `control_db` | `pdp-fnd04_control_postgres_data` | API `8000`, PostgreSQL `5433` |
+| Testes | `pdp-fnd04-test` | `control_test_db` | `pdp-fnd04-test_control_postgres_data` | API `8001`, PostgreSQL `5434` |
+
+As portas de teste são derivadas das portas configuradas para desenvolvimento.
+O Compose de teste recebe credenciais e conexão internas próprias, e o script
+remove containers, rede e volume de teste com `down --volumes` ao final. O
+comportamento `up`, `down` e `clean` do projeto normal continua usando o volume
+persistente de desenvolvimento.
+
+### Validação executada
+
+- Sentinela sintética criada no Control DB normal: `sentinel-fnd04-20260922-7d5a|active`.
+- `./scripts/fnd04.ps1 -Action test -EnvFile .env.example`: PASS, `6 passed`, uma
+  advertência externa de depreciação, exit code `0`.
+- Saída confirmada: `FND-04 validacao concluida no ambiente descartavel pdp-fnd04-test.`
+- Após a suíte, o sentinela permaneceu `sentinel-fnd04-20260922-7d5a|active` no
+  projeto normal.
+- O volume `pdp-fnd04_control_postgres_data` permaneceu presente com o mesmo
+  `createdAt` observado antes da suíte: `2026-09-22T18:26:49Z`.
+- O volume `pdp-fnd04-test_control_postgres_data` e os recursos do projeto de
+  teste foram removidos ao final.
+- Os volumes do FND-01 permaneceram presentes e sem alteração de criação:
+  `pdp_fnd01_postgres_data` (`2026-09-21T19:06:43Z`) e
+  `pdp_fnd01_rustfs_data` (`2026-09-21T19:06:43Z`).
+- Nova execução da suíte criou novamente seu próprio projeto/volume descartável;
+  não houve dependência de dados da execução anterior.
+
+### Barreira contra configuração incorreta
+
+Os fixtures exigem simultaneamente `CONTROL_APP_ENV=test` e o database
+`control_test_db` antes de executar a limpeza global usada entre testes. Uma
+execução forçada do serviço de testes com o projeto normal foi bloqueada no
+setup, com exit code `1` e a mensagem:
+
+`Testes bloqueados: use CONTROL_APP_ENV=test e o database descartavel control_test_db.`
+
+Nenhum `DELETE` foi executado contra o banco normal durante essa tentativa e o
+sentinela continuou presente. Portanto, a limpeza destrutiva da suíte só pode
+alcançar o banco descartável criado para aquela execução.
+
+### Critérios adicionais desta correção
+
+| Critério | Resultado |
+| --- | --- |
+| Projeto, database e volume exclusivos para testes | PASS |
+| Portas de teste coexistem com o ambiente normal | PASS |
+| `test` remove apenas os recursos descartáveis | PASS |
+| Execução acidental contra o banco normal é bloqueada | PASS |
+| Sentinela do Control DB normal preservado | PASS |
+| Volume normal preservado | PASS |
+| Volumes do FND-01 preservados | PASS |
+| Conexão host/container documentada | PASS |
+
+Commit de código desta correção: `6b40ad7`.
