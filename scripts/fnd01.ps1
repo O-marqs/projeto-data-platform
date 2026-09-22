@@ -1,13 +1,15 @@
 param(
     [ValidateSet("up", "test", "down", "clean")]
-    [string]$Action = "test"
+    [string]$Action = "test",
+    [string]$ProjectName = "pdp-fnd01",
+    [string]$EnvFile = ""
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $composeFile = Join-Path $repoRoot "infra\local\docker-compose.yml"
-$envFile = Join-Path $repoRoot ".env"
-$projectName = "pdp-fnd01"
+$envFile = if ($EnvFile) { (Resolve-Path $EnvFile).Path } else { Join-Path $repoRoot ".env" }
+$projectName = $ProjectName
 $composeBase = @("--project-name", $projectName, "--env-file", $envFile, "-f", $composeFile)
 
 if (-not (Test-Path $envFile)) {
@@ -68,7 +70,17 @@ function Start-Lab {
 
 function Run-Spark {
     param([string]$Mode)
-    Invoke-Compose --profile fnd01 run --rm spark --mode $Mode
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        & docker compose @composeBase --profile fnd01 run --rm spark --mode $Mode
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        if ($attempt -lt 3) {
+            Write-Output "FND01_SPARK_RETRY=START attempt=$($attempt + 1)"
+            Start-Sleep -Seconds 5
+        }
+    }
+    throw "Spark falhou apos 3 tentativas."
 }
 
 function Verify-Storage {
@@ -89,15 +101,30 @@ switch ($Action) {
         Write-Output "FND-01 ambiente iniciado."
     }
     "test" {
+        $totalTimer = [System.Diagnostics.Stopwatch]::StartNew()
+        $coldStartTimer = [System.Diagnostics.Stopwatch]::StartNew()
         Start-Lab
+        $coldStartTimer.Stop()
+        Write-Output "FND01_COLD_START_SECONDS=$([math]::Round($coldStartTimer.Elapsed.TotalSeconds, 1))"
+
+        $smokeTimer = [System.Diagnostics.Stopwatch]::StartNew()
         Run-Spark "write-read"
         Verify-Storage
+        $smokeTimer.Stop()
+        Write-Output "FND01_SMOKE_SECONDS=$([math]::Round($smokeTimer.Elapsed.TotalSeconds, 1))"
+
         Invoke-Compose stop
         Write-Output "FND-01 ambiente parado sem remover volumes."
+
+        $restartTimer = [System.Diagnostics.Stopwatch]::StartNew()
         Start-Lab
         Run-Spark "verify"
         Verify-Storage
+        $restartTimer.Stop()
+        Write-Output "FND01_RESTART_VERIFY_SECONDS=$([math]::Round($restartTimer.Elapsed.TotalSeconds, 1))"
         Write-Output "FND01_RESTART=PASS"
+        $totalTimer.Stop()
+        Write-Output "FND01_TOTAL_SECONDS=$([math]::Round($totalTimer.Elapsed.TotalSeconds, 1))"
     }
     "down" {
         Invoke-Compose down

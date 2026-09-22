@@ -41,15 +41,24 @@ O experimento fica isolado em `experiments/fnd01/` e a infraestrutura em `infra/
 
 - O caminho Spark -> Iceberg -> Polaris -> RustFS e exercitado com componentes reais.
 - A persistencia do catalogo e dos dados pode ser demonstrada com `stop`/`up` sem remover volumes.
-- As imagens e dependencias criticas estao fixadas e documentadas.
+- As imagens e dependencias criticas estao fixadas e documentadas; o FND-02
+  adiciona digests Docker, verificacao executavel dos checksums Maven e um
+  teste de instalacao limpa.
 - O bootstrap do bucket e do catalogo e idempotente para facilitar repeticao.
+- As portas publicadas pelo FND-01 mantem defaults estaveis; a validacao limpa
+  pode usar portas efemeras do host sem alterar os endpoints internos da rede
+  Compose.
 
 ### Limitacoes
 
 - O metastore e o object storage sao instancias locais unicas.
 - A autenticacao usa credenciais estaticas e o catalogo nao usa STS.
 - A imagem RustFS esta em release alpha; a escolha precisa ser reavaliada antes de compartilhar o ambiente.
-- A execucao depende de acesso a Docker Hub e Maven Central na primeira subida.
+- A execucao depende de acesso a Docker Hub e Maven Central na primeira subida;
+  o entrypoint valida os JARs antes de usa-los; cache local acelera a execucao,
+  mas nao e requisito funcional.
+- Os digests registrados representam `linux/amd64`; outras arquiteturas devem
+  repetir a homologacao do manifesto.
 
 ## Migracao
 
