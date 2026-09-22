@@ -15,7 +15,7 @@ This evidence validates the version homologation and reproducibility scope for t
 | Execution date | 2026-09-21 |
 | Repository | `O-marqs/projeto-data-platform` |
 | Baseline validated commit | `5c746ff` |
-| Final review commit | `<filled after final review commit>` |
+| Final review commit | `a8e5bea` |
 | Clean-install project | `pdp-fnd02-86d36067104d` |
 | Persistent test project | `pdp-fnd01` |
 
