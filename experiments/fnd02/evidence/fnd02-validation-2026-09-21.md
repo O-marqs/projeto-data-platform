@@ -14,7 +14,8 @@ This evidence validates the version homologation and reproducibility scope for t
 | Docker architecture | linux/amd64 through Docker Desktop/WSL2 |
 | Execution date | 2026-09-21 |
 | Repository | `O-marqs/projeto-data-platform` |
-| Validated commit | `5c746ff` |
+| Baseline validated commit | `5c746ff` |
+| Final review commit | `<filled after final review commit>` |
 | Clean-install project | `pdp-fnd02-86d36067104d` |
 | Persistent test project | `pdp-fnd01` |
 
@@ -36,7 +37,7 @@ This evidence validates the version homologation and reproducibility scope for t
 | Iceberg Spark runtime | 1.10.1 | Maven SHA-256 `39ea09e6c03550a300b9d9ab498949836d2d434e441da4c12a943a086e396940` |
 | Iceberg AWS bundle | 1.10.1 | Maven SHA-256 `86bf20892ea5b4c17688f19b075399885f6aa5303f6b2dc9f491e76ceef9633b` |
 
-The image references in `infra/local/docker-compose.yml` use a fixed tag plus digest. The Maven coordinates in `spark-entrypoint.sh` are fixed and their SHA-256 values are recorded above. No `latest` reference was found.
+The image references in `infra/local/docker-compose.yml` use a fixed tag plus digest. The Maven coordinates and their SHA-256 values are recorded in `verify-iceberg-artifacts.py` and this matrix. No `latest` reference was found.
 
 ## Architecture validation
 
@@ -126,6 +127,98 @@ The timing run used images already present locally. The isolated clean-install t
 - No real access key, secret key, PostgreSQL password, OAuth client secret, or token was found in tracked files.
 - The bootstrap script contains only the authorization header construction required to send its in-memory token; it does not print or persist the token.
 - No raw logs or rendered Compose environment were saved in the repository.
+
+## Final review revalidation - 2026-09-22
+
+This section preserves the original 2026-09-21 evidence above and records the
+final PR review requested for PDP-20/FND-02.
+
+### Files changed in the final review
+
+- `.env.example`
+- `infra/local/docker-compose.yml`
+- `scripts/fnd01.ps1`
+- `scripts/fnd02-clean-validation.ps1`
+- `scripts/fnd02-checksum-validation.ps1`
+- `experiments/fnd01/scripts/spark-entrypoint.sh`
+- `experiments/fnd01/scripts/verify-iceberg-artifacts.py`
+- `experiments/fnd01/README.md`
+- `docs/architecture/fnd02-version-matrix.md`
+- `docs/adr/ADR-020-fnd01-catalogo-local.md`
+- this evidence file
+
+### Port coexistence
+
+The Compose file keeps the normal FND-01 host ports as defaults and exposes
+simple `*_HOST_PORT` overrides. The clean-validation script sets the five
+published host ports to `0`, allowing Docker to assign ephemeral ports while
+leaving all container-to-container endpoints unchanged.
+
+The coexistence test was executed with the persistent FND-01 project already
+running and the isolated project `pdp-fnd02-f052f1ccdcb9` starting with unique
+volumes and synthetic credentials. Result: `PASS`. The persistent FND-01
+containers remained healthy and its volumes were not removed. The isolated
+project completed write/read, restart/verify, and cleanup successfully.
+
+### Maven checksum validation
+
+`verify-iceberg-artifacts.py` downloads the two fixed Iceberg artifacts into a
+temporary cache, validates the expected SHA-256 values from the environment,
+and writes the verified paths for the Spark entrypoint. A cached file is hashed
+again and a mismatch fails before the file is passed to Spark. The entrypoint
+uses `--jars` only after this validation; the JARs are not versioned.
+
+Positive and cache results:
+
+```text
+FND02_MAVEN_CHECKSUM=PASS artifact=iceberg-spark-runtime-3.5_2.12 source=download sha256=39ea09e6c03550a300b9d9ab498949836d2d434e441da4c12a943a086e396940
+FND02_MAVEN_CHECKSUM=PASS artifact=iceberg-aws-bundle source=download sha256=86bf20892ea5b4c17688f19b075399885f6aa5303f6b2dc9f491e76ceef9633b
+FND02_MAVEN_CHECKSUM=PASS artifact=iceberg-spark-runtime-3.5_2.12 source=cache sha256=39ea09e6c03550a300b9d9ab498949836d2d434e441da4c12a943a086e396940
+FND02_MAVEN_CHECKSUM=PASS artifact=iceberg-aws-bundle source=cache sha256=86bf20892ea5b4c17688f19b075399885f6aa5303f6b2dc9f491e76ceef9633b
+FND02_MAVEN_CACHE=PASS
+```
+
+Negative result with an all-zero expected checksum, executed in a temporary
+container and without changing the homologated values:
+
+```text
+FND02_MAVEN_CHECKSUM=FAIL reason=checksum mismatch for downloaded iceberg-spark-runtime-3.5_2.12
+FND02_MAVEN_NEGATIVE=PASS
+```
+
+### Regression results
+
+| Test | Result | Evidence |
+|---|---|---|
+| Compose render after port and checksum changes | PASS | `docker compose config --quiet` |
+| PowerShell script parse | PASS | `fnd01.ps1`, clean validation, checksum validation |
+| Persistent FND-01 write/read | PASS | `FND01_WRITE=PASS existing_rows=3`, `FND01_READ=PASS rows=3` |
+| RustFS objects | PASS | 3 Parquet, 2 metadata JSON, 2 Avro |
+| Persistent restart and verify | PASS | `FND01_RESTART_READ=PASS table_and_data_persisted=true` |
+| Verify without recreation | PASS | Existing table/data read without create or append |
+| FND-01 idempotence | PASS | Existing row count remained 3 |
+| FND-02 clean install with FND-01 coexistence | PASS | Isolated project completed with host ports set to 0 |
+| Automatic Maven checksum positive test | PASS | Download and cache paths both verified |
+| Automatic Maven checksum negative test | PASS | Deliberate mismatch returned exit code 1 |
+
+The first post-change persistent attempt exposed a transient Polaris `401
+NotAuthorized` during the bootstrap-to-Spark handoff. The runner now retries
+Spark at most three times with a five-second delay and still fails the test if
+all attempts fail. The final full regression completed without requiring a
+retry marker and returned `FND01_RESTART=PASS`.
+
+Final persistent regression timings:
+
+| Timing | Value |
+|---|---:|
+| Cold start | 8.8 s |
+| Smoke test | 41.4 s |
+| Restart + verify | 65.8 s |
+| Full run | 118.8 s |
+
+Clean coexistence timings were approximately 30.1 s cold start, 52.5 s smoke,
+67.2 s restart/verify, and 152.7 s overall. These values include the local
+Docker and Maven network conditions at execution time.
 
 ## Limitations
 

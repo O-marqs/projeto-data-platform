@@ -40,17 +40,24 @@ e [Iceberg multi-engine support](https://iceberg.apache.org/multi-engine-support
   desses artefatos nao adicionam dependencias Maven transitivas; o AWS bundle
   e distribuido como bundle. O Spark/Iceberg continua dependendo das
   bibliotecas fornecidas pela propria imagem Spark.
-- Resolucao Maven: as coordenadas e SHA-256 estao versionados nesta matriz;
-  o `spark-submit` continua usando coordenadas fixas para manter o fluxo
-  oficial do Spark. Um cache Maven local nao e requisito oculto: a primeira
-  execucao precisa de Maven Central, e a evidencia deve registrar se o cache
-  ja existia.
+- Resolucao Maven: `verify-iceberg-artifacts.py` baixa os dois artefatos a
+  partir das coordenadas fixas, valida os SHA-256 esperados e somente depois
+  o entrypoint passa os caminhos locais verificados ao `spark-submit` via
+  `--jars`. Um arquivo presente no cache com checksum incorreto causa falha;
+  nunca e sobrescrito silenciosamente. Um cache Maven local nao e requisito
+  oculto: a primeira execucao precisa de Maven Central, e a evidencia deve
+  registrar os casos de download e cache.
 
 ## Airflow e providers
 
 Airflow e providers ficam fora do FND-02 executado. A tabela abaixo e apenas
 planejamento de compatibilidade para uma etapa futura; nenhuma imagem, DAG ou
 provider foi instalado ou homologado nesta tarefa.
+
+Esta e uma decisao de sequenciamento: a selecao de Python, Airflow e providers
+sera feita no card responsavel pelo primeiro pipeline orquestrado, quando o
+executor e a conexao Spark estiverem definidos. O planejamento original foi
+preservado, mas nao e tratado como homologacao deste laboratorio.
 
 | Item | Planejamento | Status |
 | --- | --- | --- |

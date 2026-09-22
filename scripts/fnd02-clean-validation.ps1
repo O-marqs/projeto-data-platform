@@ -18,6 +18,11 @@ try {
     $envContent = $envContent.Replace("change-me-postgres-password", "fnd02-postgres-$suffix")
     $envContent += "`r`nFND01_RUSTFS_VOLUME_NAME=pdp_fnd02_${suffix}_rustfs_data`r`n"
     $envContent += "FND01_POSTGRES_VOLUME_NAME=pdp_fnd02_${suffix}_postgres_data`r`n"
+    $envContent += "RUSTFS_API_HOST_PORT=0`r`n"
+    $envContent += "RUSTFS_CONSOLE_HOST_PORT=0`r`n"
+    $envContent += "POSTGRES_HOST_PORT=0`r`n"
+    $envContent += "POLARIS_CATALOG_HOST_PORT=0`r`n"
+    $envContent += "POLARIS_MANAGEMENT_HOST_PORT=0`r`n"
     Set-Content -Path $envFile -Value $envContent -NoNewline
 
     & (Join-Path $repoRoot "scripts\fnd01.ps1") -Action test -ProjectName $projectName -EnvFile $envFile

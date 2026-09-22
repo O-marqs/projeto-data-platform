@@ -1,8 +1,14 @@
 #!/bin/sh
 set -eu
 
+python3 /opt/fnd01/verify-iceberg-artifacts.py \
+  --cache-dir /tmp/fnd01-maven-cache \
+  --paths-file /tmp/fnd01-jar-paths
+
+jar_paths=$(tr '\n' ',' < /tmp/fnd01-jar-paths | sed 's/,$//')
+
 exec /opt/spark/bin/spark-submit \
-  --packages "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:${ICEBERG_VERSION},org.apache.iceberg:iceberg-aws-bundle:${ICEBERG_VERSION}" \
+  --jars "${jar_paths}" \
   --conf "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}=org.apache.iceberg.spark.SparkCatalog" \
   --conf "spark.sql.catalog.${ICEBERG_CATALOG}.type=rest" \

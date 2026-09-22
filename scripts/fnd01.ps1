@@ -70,7 +70,17 @@ function Start-Lab {
 
 function Run-Spark {
     param([string]$Mode)
-    Invoke-Compose --profile fnd01 run --rm spark --mode $Mode
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        & docker compose @composeBase --profile fnd01 run --rm spark --mode $Mode
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        if ($attempt -lt 3) {
+            Write-Output "FND01_SPARK_RETRY=START attempt=$($attempt + 1)"
+            Start-Sleep -Seconds 5
+        }
+    }
+    throw "Spark falhou apos 3 tentativas."
 }
 
 function Verify-Storage {

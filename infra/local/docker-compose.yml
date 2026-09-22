@@ -2,8 +2,8 @@ services:
   rustfs:
     image: rustfs/rustfs:${RUSTFS_VERSION}@${RUSTFS_IMAGE_DIGEST:-sha256:4ee605dfe7c6548d1fa1856357e8a1eccd929e3176acf933fafeba3ce09a69f9}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${RUSTFS_API_HOST_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_HOST_PORT:-9001}:9001"
     environment:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
@@ -24,7 +24,7 @@ services:
   postgres:
     image: postgres:${POSTGRES_VERSION}@${POSTGRES_IMAGE_DIGEST:-sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae}
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     shm_size: 128mb
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -89,8 +89,8 @@ services:
   polaris:
     image: apache/polaris:${POLARIS_VERSION}@${POLARIS_IMAGE_DIGEST:-sha256:3495f67f38cca33892a045f7dd3f46eb52387f0fd52d4145538a772fd8aedad7}
     ports:
-      - "8181:8181"
-      - "8182:8182"
+      - "${POLARIS_CATALOG_HOST_PORT:-8181}:8181"
+      - "${POLARIS_MANAGEMENT_HOST_PORT:-8182}:8182"
     depends_on:
       postgres:
         condition: service_healthy
@@ -151,6 +151,8 @@ services:
       ICEBERG_CATALOG: ${ICEBERG_CATALOG}
       ICEBERG_NAMESPACE: ${ICEBERG_NAMESPACE}
       ICEBERG_TABLE: ${ICEBERG_TABLE}
+      ICEBERG_SPARK_RUNTIME_SHA256: ${ICEBERG_SPARK_RUNTIME_SHA256:-39ea09e6c03550a300b9d9ab498949836d2d434e441da4c12a943a086e396940}
+      ICEBERG_AWS_BUNDLE_SHA256: ${ICEBERG_AWS_BUNDLE_SHA256:-86bf20892ea5b4c17688f19b075399885f6aa5303f6b2dc9f491e76ceef9633b}
       POLARIS_INTERNAL_ENDPOINT: ${POLARIS_INTERNAL_ENDPOINT}
       POLARIS_REALM: ${POLARIS_REALM}
       POLARIS_CATALOG: ${POLARIS_CATALOG}
@@ -162,6 +164,7 @@ services:
       RUSTFS_REGION: ${RUSTFS_REGION}
     volumes:
       - ../../experiments/fnd01/scripts/spark-entrypoint.sh:/opt/fnd01/entrypoint.sh:ro
+      - ../../experiments/fnd01/scripts/verify-iceberg-artifacts.py:/opt/fnd01/verify-iceberg-artifacts.py:ro
       - ../../experiments/fnd01/src/run_fnd01.py:/opt/fnd01/run_fnd01.py:ro
     entrypoint: ["/opt/fnd01/entrypoint.sh"]
     command: ["--mode", "write-read"]

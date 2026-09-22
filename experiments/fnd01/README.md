@@ -46,6 +46,8 @@ A evidencia versionada da ultima validacao esta em [evidence/fnd01-validation-20
 O Compose usa digests Docker fixados por default. Os nomes de volume do FND-01
 continuam sendo `pdp_fnd01_postgres_data` e `pdp_fnd01_rustfs_data`; uma
 execucao limpa e isolada deve usar o script FND-02 descrito abaixo.
+As portas publicadas no host mantem esses defaults para o FND-01 e podem ser
+substituidas pelas variaveis `*_HOST_PORT`.
 
 ## Como executar
 
@@ -128,6 +130,23 @@ volumes novos, sem depender dos recursos do FND-01:
 O script remove somente os recursos do projeto temporario ao terminar. Ele nao
 remove os volumes padrao do FND-01. Use `-KeepVolumes` apenas para inspecionar
 os objetos antes da limpeza.
+
+Durante a validacao limpa, as portas do host sao definidas como `0`, portanto o
+Docker escolhe portas efemeras. A comunicacao do Spark, Polaris, PostgreSQL e
+RustFS continua usando os endpoints internos da rede Compose. Assim, o FND-01
+pode permanecer em execucao enquanto o FND-02 e validado, sem compartilhar
+volumes ou disputar as portas `9000`, `9001`, `8181`, `8182` e `5432`.
+
+Para validar os JARs Iceberg antes do Spark usa-los, execute:
+
+```powershell
+.\scripts\fnd02-checksum-validation.ps1
+```
+
+O primeiro ciclo baixa os dois artefatos e o segundo exercita o cache ja
+verificado. O mesmo script executa um caso negativo com checksum incorreto e
+exige falha controlada. A execucao normal usa os JARs locais somente depois da
+validacao e passa seus caminhos ao `spark-submit`.
 
 ## Limites e dividas tecnicas
 
