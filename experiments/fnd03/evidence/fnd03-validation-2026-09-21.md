@@ -19,6 +19,7 @@ O card manteve o monorepo, nao criou servicos ou repositorios adicionais e nao a
 - Commit base auditado: `fa3fa29` (main apos merge do PR #2)
 - Commit da implementacao documental: `9e384b1`
 - Commit efetivamente validado nesta revisao: `c728db1`
+- Commit dos ajustes documentais solicitados: `c4bd0d7`
 - Sistema operacional: Windows no ambiente Codex Desktop
 - Data da auditoria: 2026-09-21
 - Escopo: revisao estrutural e documental; nenhuma mudanca funcional
