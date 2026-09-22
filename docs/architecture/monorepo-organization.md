@@ -14,14 +14,15 @@ Um README de uma area reservada e documentacao de intencao, nao uma implementaca
 
 | Caminho | Responsabilidade | Estado |
 | --- | --- | --- |
-| `apps/control-plane-api/` | futura composicao HTTP/API do control plane | ESTRUTURA RESERVADA PARA EVOLUCAO |
+| `apps/control-plane-api/` | base HTTP/API do Control Plane, health/readiness e migrations do Control DB | IMPLEMENTADO para FND-04; CRUD e capacidades de governanca continuam fora do escopo |
 | `apps/portal/` | futura interface de portal e backoffice | ESTRUTURA RESERVADA PARA EVOLUCAO |
 | `libs/platform-contracts/` | futuros contratos, schemas e modelos compartilhados | ESTRUTURA RESERVADA PARA EVOLUCAO |
 | `pipelines/batch/` | futuros jobs batch e transformacoes | ESTRUTURA RESERVADA PARA EVOLUCAO |
-| `infra/local/` | Compose, configuracao e bootstrap do laboratorio local | IMPLEMENTADO para FND-01 |
+| `infra/local/` | Compose, configuracao e bootstrap dos laboratorios locais | IMPLEMENTADO para FND-01 e FND-04 |
 | `experiments/fnd01/` | spike executavel Spark, Iceberg, Polaris e RustFS | IMPLEMENTADO |
 | `experiments/fnd02/` | evidencias de checksum e instalacao limpa | IMPLEMENTADO |
 | `experiments/fnd03/evidence/` | evidencias versionadas de organizacao e convencoes | IMPLEMENTADO neste card |
+| `experiments/fnd04/evidence/` | evidencias versionadas da base FastAPI e Control DB | IMPLEMENTADO neste card |
 | `docs/adr/` | decisoes arquiteturais | IMPLEMENTADO |
 | `docs/architecture/` | matrizes e regras de arquitetura | IMPLEMENTADO |
 | `docs/jira/` | rastreabilidade do backlog | IMPLEMENTADO |
@@ -32,16 +33,18 @@ Um README de uma area reservada e documentacao de intencao, nao uma implementaca
 
 ```text
 apps/
-  control-plane-api/README.md
+  control-plane-api/          Base FastAPI, migrations e testes do Control DB
   portal/README.md
 libs/
   platform-contracts/README.md
 pipelines/
   batch/README.md
 infra/local/
+  control-plane/              Compose isolado do Control Plane
 experiments/fnd01/
 experiments/fnd02/evidence/
 experiments/fnd03/evidence/
+experiments/fnd04/evidence/
 docs/adr/
 docs/architecture/
 docs/jira/
@@ -50,7 +53,7 @@ tests/fixtures/README.md
 
 ## Limites de dependencia
 
-Quando o primeiro codigo de dominio existir, a direcao esperada de dependencia sera:
+O FND-04 implementa apenas composicao HTTP, persistencia relacional e diagnostics. Nao ha ainda um pacote `core` executavel. Quando o primeiro codigo de dominio existir, a direcao esperada de dependencia sera:
 
 ```text
 apps -> casos de uso -> dominio
@@ -81,7 +84,7 @@ A auditoria do commit base encontrou executaveis somente em scripts PowerShell/s
 
 - Dominio, casos de uso e portas internas: criar uma biblioteca real, como `libs/platform-core/`, somente quando houver codigo e ownership suficientes.
 - Contratos: evoluir `libs/platform-contracts/` com schemas, specs e compatibilidade.
-- API: implementar em `apps/control-plane-api/` quando houver casos de uso e contrato HTTP.
+- API: evoluir `apps/control-plane-api/` quando houver casos de uso e contrato HTTP; a base de health/readiness do FND-04 nao representa o Control Plane completo.
 - Portal: implementar em `apps/portal/` quando existir fluxo de usuario definido.
 - Pipelines: criar subpastas em `pipelines/batch/` com runtime, fixture e rerun documentados.
 - Runtime especifico de spike: permanecer em `experiments/<id>/`; runtime de pipeline deve viver com o pipeline quando houver pipeline real.
