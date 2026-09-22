@@ -46,7 +46,7 @@ As variaveis `CONTROL_*` ficam no `.env.example`. A conexao do Control Plane e i
 
 - Database: `control_db`.
 - Usuario: `control_user`.
-- Volume: `pdp_control_postgres_data`.
+- Volume: `pdp-fnd04_control_postgres_data` por padrao, escopado ao projeto Compose.
 - Porta local do banco: `5433` por padrao.
 - Porta local da API: `8000` por padrao.
 
@@ -102,7 +102,7 @@ docker compose --project-name pdp-fnd04 --env-file .env -f infra/local/control-p
 ./scripts/fnd04.ps1 clean
 ```
 
-`down` remove apenas os containers do projeto FND-04 e preserva `pdp_control_postgres_data`. `clean` remove apenas esse volume. Nenhum desses comandos usa o projeto Compose, volume ou container do FND-01/FND-02.
+`down` remove apenas os containers do projeto FND-04 e preserva `pdp-fnd04_control_postgres_data`. `clean` remove apenas o volume escopado ao projeto em uso. Nenhum desses comandos usa o projeto Compose, volume ou container do FND-01/FND-02. Ao usar um `ProjectName` alternativo, o Compose cria um volume igualmente escopado a esse projeto.
 
 ## Portabilidade e limitacoes
 

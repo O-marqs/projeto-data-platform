@@ -68,4 +68,3 @@ services:
 
 volumes:
   control_postgres_data:
-    name: ${CONTROL_POSTGRES_VOLUME_NAME:-pdp_control_postgres_data}
