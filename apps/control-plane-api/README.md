@@ -71,12 +71,6 @@ docker compose --project-name pdp-fnd04 --env-file .env -f infra/local/control-p
 docker compose --project-name pdp-fnd04 --env-file .env -f infra/local/control-plane/docker-compose.yml run --rm control-migrate alembic current
 ```
 
-Para consultar a versao instalada diretamente:
-
-```powershell
-docker compose --project-name pdp-fnd04 --env-file .env -f infra/local/control-plane/docker-compose.yml run --rm control-migrate alembic current
-```
-
 Uma migration reaplicada no mesmo banco nao altera o schema quando a versao ja esta atual. Em caso de falha, preserve o volume, consulte `docker compose ... logs control-migrate`, corrija a causa e execute novamente o servico de migration. Nao execute downgrade destrutivo no volume persistente real; para uma instalacao limpa use `./scripts/fnd04.ps1 clean`, que remove somente o volume do Control Plane.
 
 ## Testes
@@ -113,5 +107,7 @@ docker compose --project-name pdp-fnd04 --env-file .env -f infra/local/control-p
 ## Portabilidade e limitacoes
 
 O Control Plane depende somente de `CONTROL_DATABASE_URL` e de seu schema/migrations. Hoje ele usa uma instância PostgreSQL em container separado do Polaris para reduzir acoplamento local. No futuro, os databases podem compartilhar uma instância PostgreSQL, mantendo usuarios, databases e migrations independentes; isso nao foi implantado nem homologado em nuvem neste card.
+
+As foreign keys usam a politica padrao restritiva do PostgreSQL: nao ha `ON DELETE CASCADE` na migration. A remocao de uma Organization ou Domain com dependentes deve ser tratada explicitamente por uma futura capability de governanca; esta base nao apaga dados em cascata.
 
 A API e destinada ao laboratorio local. Nao ha autenticacao, autorizacao, TLS, rede publica ou garantia de seguranca para exposicao na internet.
