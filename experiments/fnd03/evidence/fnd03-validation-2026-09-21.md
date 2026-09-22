@@ -6,6 +6,12 @@
 
 O card manteve o monorepo, nao criou servicos ou repositorios adicionais e nao alterou o runtime dos FND-01/FND-02.
 
+## Ajustes desta revisao
+
+- `docs/adr/0001-repo-inicial.md` passou de `Proposto` para `Adotado para o estagio inicial do projeto`, sem transformar o monorepo em uma obrigacao permanente e preservando os criterios de separacao futura.
+- `docs/architecture/monorepo-organization.md` passou a representar explicitamente que o dominio nao depende de casos de uso, adapters ou SDKs externos; casos de uso dependem do dominio e de portas; adapters implementam portas e dependem de contratos internos; apps fazem a composicao.
+- Nenhum codigo, pacote, interface, servico ou runtime foi criado.
+
 ## Ambiente da validacao
 
 - Repositorio: `O-marqs/projeto-data-platform`
@@ -81,6 +87,9 @@ Os executaveis auditados foram scripts operacionais, `experiments/fnd01/src/run_
 - Verificacao de que os scripts documentados existem e podem ser resolvidos pelo PowerShell.
 - `docker compose --env-file .env.example -f infra/local/docker-compose.yml config --quiet` com resultado PASS.
 - Verificacao de que `@O-marqs` e um owner valido do repositorio e de que nao ha equipe ficticia no CODEOWNERS.
+- `git diff --check` apos os ajustes documentais, com resultado PASS.
+- Verificacao dos links relativos nos dois documentos alterados, com resultado PASS.
+- Verificacao de que somente documentacao foi alterada nesta revisao, com resultado PASS.
 
 ## Verificacoes nao executadas
 

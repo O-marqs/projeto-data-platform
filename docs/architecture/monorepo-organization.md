@@ -50,20 +50,23 @@ tests/fixtures/README.md
 
 ## Limites de dependencia
 
-Quando o primeiro codigo de dominio existir, a direcao esperada sera:
+Quando o primeiro codigo de dominio existir, a direcao esperada de dependencia sera:
 
 ```text
-dominio neutro -> casos de uso -> portas internas
-adaptadores/runtime/infra -> portas internas e contratos
-apps -> composicao de casos de uso e adaptadores
+apps -> casos de uso -> dominio
+apps -> adapters
+casos de uso -> portas internas
+adapters --implementam--> portas internas
+adapters -> contratos internos
 experiments -> validacao de runtime e infraestrutura
 ```
 
 Regras:
 
-- Dominio e casos de uso nao importam Spark, Airflow, FastAPI, Kubernetes ou SDK de provedor.
-- Adaptadores conhecem detalhes de storage, catalogo, mensageria ou HTTP e traduzem para portas internas.
-- Aplicacoes fazem composicao; nao devem duplicar regra de dominio.
+- Dominio e a camada mais interna: nao depende de casos de uso, adapters, SDKs externos, Spark, Airflow, FastAPI ou Kubernetes.
+- Casos de uso podem depender do dominio e das portas internas, mas nao dependem de implementacoes concretas de adapters ou de SDKs externos.
+- Adapters implementam as portas internas e dependem dos contratos internos e dos detalhes externos de storage, catalogo, mensageria ou HTTP.
+- Apps fazem a composicao dos casos de uso, adapters e configuracao; nao devem duplicar regra de dominio.
 - Experimentos podem depender de runtime e infraestrutura para provar uma hipotese, mas componentes de producao nao dependem de experimentos.
 - Fixtures e evidencias nao sao dependencias de runtime.
 - Contratos estaveis devem ser versionados e mudancas quebrantes devem ser documentadas.
