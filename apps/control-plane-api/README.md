@@ -1,17 +1,19 @@
 # Control Plane API
 
-Base executavel do Control Plane criada no FND-04/PDP-22. Esta entrega fornece uma API FastAPI minima, um banco PostgreSQL dedicado, migrations Alembic e endpoints de health/readiness. Ela nao implementa o Control Plane completo nem endpoints de dominio.
+Base executavel do Control Plane criada no FND-04/PDP-22 e ampliada no FND-06/PDP-24. Esta entrega fornece uma API FastAPI minima, um banco PostgreSQL dedicado, migrations Alembic, a fronteira de Connection e endpoints de health/readiness. Ela nao implementa o Control Plane completo.
 
 ## Escopo implementado
 
 - `GET /health/live`: responde quando o processo HTTP esta vivo, sem consultar o banco.
 - `GET /health/ready`: consulta o Control DB e exige a migration `0001_initial_control_plane` aplicada.
 - Modelo relacional minimo: Organization, Domain, Team e DataProduct.
+- Modelo Connection pertencente a um Domain, com `secret_ref` opaco e configuracao nao sensivel validada.
 - UUIDs internos, foreign keys e unicidade por escopo no PostgreSQL.
 - Migration versionada em `alembic/versions/`.
-- Testes HTTP e constraints executados contra PostgreSQL real no Compose.
+- Autorizacao minima por identidade confiavel, dominio e permissao para leitura de Connection.
+- Testes HTTP, autorizacao, vazamento e constraints executados contra PostgreSQL real no Compose.
 
-Nao implementado: CRUD, autenticacao, autorizacao, membership, RBAC, datasets, pipelines, runs, contratos, auditoria, outbox, workers ou integracao com Polaris.
+Nao implementado: Keycloak, Vault, login humano, autenticacao real, CRUD completo, membership, RBAC corporativo, datasets, pipelines, runs, contratos, auditoria, outbox, workers ou integracao com Polaris.
 
 ## Estrutura
 
@@ -20,7 +22,8 @@ apps/control-plane-api/
   app/
     config.py       configuracao tipada por ambiente
     db.py           engine e sessoes SQLAlchemy
-    models.py       modelo relacional do FND-04
+    models.py       modelo relacional do FND-04/FND-06
+    security.py     identidade, autorizacao e fronteira de segredos
     main.py         composicao FastAPI e health/readiness
   alembic/
     env.py
@@ -69,7 +72,7 @@ O FND-04 usa o Compose `infra/local/control-plane/docker-compose.yml`, com proje
 
 ## Migrations
 
-As migrations sao explicitas e executadas pelo servico `control-migrate`; a API nao cria tabelas automaticamente.
+As migrations sao explicitas e executadas pelo servico `control-migrate`; a API nao cria tabelas automaticamente. A migration atual e `0002_connection`, aplicada depois de `0001_initial_control_plane`, sem alterar a migration inicial.
 
 ```powershell
 ./scripts/fnd04.ps1 up
@@ -112,6 +115,31 @@ Invoke-WebRequest http://127.0.0.1:8000/health/ready
 
 As respostas nao exibem connection string, senha ou detalhes internos do banco.
 
+## Connection e autorizacao
+
+`Connection` representa uma conexao logica pertencente a um `Domain`. O modelo
+armazena `name`, `connection_type`, uma configuracao JSON somente publica e um
+`secret_ref` opaco no formato `sref_...`. O valor do segredo, senha, token,
+connection string com credencial e headers nunca pertencem ao Control DB ou a
+resposta HTTP. A configuracao rejeita chaves e valores que indiquem material
+secreto; esta e uma barreira de contrato, nao um cofre.
+
+O endpoint minimo `GET /connections/{id}` exige uma identidade confiavel com
+permissao `connection:read` no mesmo dominio. `connection:admin` inclui leitura;
+`connection:resolve` e reservado para o futuro resolvedor de segredos. Ausencia
+de identidade, permissao ou escopo resulta em negacao. O endpoint nao aceita
+`X-User-ID`, `X-Domain-ID`, `X-Role` ou qualquer header como prova de identidade.
+
+Hoje `get_current_identity` nega por padrao. Os testes injetam identidades
+sinteticas via `app.dependency_overrides`, mecanismo interno que nao pode ser
+acionado por um cliente HTTP comum. Isso demonstra a fronteira de autorizacao,
+mas nao equivale a autenticacao humana ou de workload.
+
+O contrato `SecretResolver` em `app/security.py` permite ao SEC-01 integrar o
+Vault sem alterar Connection. Nenhum resolvedor real ou valor secreto e
+selecionado no ambiente normal neste card. O SELF-05 integrara Keycloak e OIDC;
+somente depois disso um login humano podera ser habilitado.
+
 ## Logs, parada e limpeza
 
 ```powershell
@@ -128,4 +156,8 @@ O Control Plane depende somente de `CONTROL_DATABASE_URL` e de seu schema/migrat
 
 As foreign keys usam a politica padrao restritiva do PostgreSQL: nao ha `ON DELETE CASCADE` na migration. A remocao de uma Organization ou Domain com dependentes deve ser tratada explicitamente por uma futura capability de governanca; esta base nao apaga dados em cascata.
 
-A API e destinada ao laboratorio local. Nao ha autenticacao, autorizacao, TLS, rede publica ou garantia de seguranca para exposicao na internet.
+A API e destinada ao laboratorio local. A autorizacao de Connection existe no
+backend, mas nao ha autenticacao real, Keycloak, Vault, TLS, rede publica ou
+garantia de seguranca para exposicao na internet. A resolucao real de segredos,
+autenticacao tecnica do runtime e login humano permanecem nos cards SEC-01 e
+SELF-05.

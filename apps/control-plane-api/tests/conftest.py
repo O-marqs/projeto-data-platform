@@ -34,7 +34,7 @@ def db_session(session_factory) -> Session:
         yield session
     finally:
         session.rollback()
-        for table in ("data_products", "teams", "domains", "organizations"):
+        for table in ("connections", "data_products", "teams", "domains", "organizations"):
             session.execute(text(f"DELETE FROM {table}"))
         session.commit()
         session.close()
