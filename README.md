@@ -1,67 +1,101 @@
 # Projeto Data Platform
 
-Repositório local do projeto `PDP - Projeto Data Platform`, criado a partir do backlog Jira.
+Monorepo do projeto `PDP - Projeto Data Platform`, rastreado no Jira.
 
 ## Objetivo
 
-Construir uma plataforma de dados reproduzível, segura e evolutiva, começando por uma fundação pequena e seguindo para um primeiro pipeline batch PostgreSQL -> Bronze/Silver/Gold com rastreabilidade, replay seguro e base para self-service.
+Construir uma plataforma de dados reproduzivel, segura e evolutiva. A fundacao atual prioriza um laboratorio local verificavel e convencoes que permitam evoluir o primeiro pipeline batch sem criar fronteiras artificiais.
 
-## Escopo inicial
+## Estado atual
 
-- Fundação de engenharia, ambiente local e CI.
-- Primeiro pipeline batch reproduzível.
-- Lakehouse com Apache Iceberg, catálogo técnico e object storage.
-- Runtimes analíticos com PySpark, Spark SQL, Trino e dbt.
-- Control Plane e portal para self-service governado.
-- Observabilidade, recuperação, qualidade, contratos e governança computacional.
+| Area | Estado | Evidencia ou referencia |
+| --- | --- | --- |
+| FND-01 | IMPLEMENTADO | [evidencia FND-01](experiments/fnd01/evidence/fnd01-validation-2026-09-17.md) |
+| FND-02 | IMPLEMENTADO | [matriz de versoes](docs/architecture/fnd02-version-matrix.md) e [evidencia FND-02](experiments/fnd02/evidence/fnd02-validation-2026-09-21.md) |
+| FND-03 | IMPLEMENTADO neste card | [organizacao do monorepo](docs/architecture/monorepo-organization.md) |
+| Control Plane API | ESTRUTURA RESERVADA PARA EVOLUCAO | [apps/control-plane-api/README.md](apps/control-plane-api/README.md) |
+| Portal | ESTRUTURA RESERVADA PARA EVOLUCAO | [apps/portal/README.md](apps/portal/README.md) |
+| Contratos compartilhados | ESTRUTURA RESERVADA PARA EVOLUCAO | [libs/platform-contracts/README.md](libs/platform-contracts/README.md) |
+| Pipeline batch | ESTRUTURA RESERVADA PARA EVOLUCAO | [pipelines/batch/README.md](pipelines/batch/README.md) |
+| CI/CD, Airflow, Trino, dbt e Kubernetes | PLANEJADO | Nao implementado neste escopo |
+
+Uma area com README de responsabilidade reservada nao e uma capability implementada. O unico runtime funcional atual e o laboratorio FND-01/FND-02.
 
 ## Estrutura
 
 ```text
 apps/
-  control-plane-api/     API do plano de controle
-  portal/                Portal e backoffice
+  control-plane-api/     Area reservada para API do plano de controle
+  portal/                Area reservada para portal e backoffice
 pipelines/
-  batch/                 Pipelines batch e jobs de ingestao/transformacao
+  batch/                 Area reservada para pipelines batch
 libs/
-  platform-contracts/    Contratos, specs e modelos compartilhados
+  platform-contracts/    Area reservada para contratos e specs compartilhados
 infra/
-  local/                 Ambiente local, containers e bootstrap
+  local/                 Ambiente local implementado para FND-01
 experiments/
-  fnd01/                 Spike do laboratorio Spark + Iceberg + Polaris + RustFS
+  fnd01/                 Laboratorio Spark + Iceberg + Polaris + RustFS
+  fnd02/                 Evidencias de homologacao e instalacao limpa
 docs/
   adr/                   Decisoes arquiteturais
+  architecture/         Matrizes e regras da arquitetura
   jira/                  Rastreabilidade com Jira
 tests/
-  fixtures/              Fixtures e massa de validacao
+  fixtures/              Area reservada para fixtures
+scripts/                  Comandos operacionais dos laboratorios
 ```
 
-## Jira
+As responsabilidades detalhadas, estados e regras de dependencias estao em [docs/architecture/monorepo-organization.md](docs/architecture/monorepo-organization.md).
 
-- Site: <https://marqs.atlassian.net>
-- Projeto: `PDP`
-- Nome: `Projeto Data Platform`
-- Backlog inicial: [docs/jira/backlog.md](docs/jira/backlog.md)
+## Jira e documentacao
+
+- Site Jira: <https://marqs.atlassian.net>
+- Projeto: `PDP - Projeto Data Platform`
+- Backlog: [docs/jira/backlog.md](docs/jira/backlog.md)
+- Referencias internas: Confluence `DP16` e `DP19`, conforme o card Jira
 
 ## Primeiro laboratorio
 
-O card `FND-01` fecha o primeiro laboratorio reproduzivel do caminho:
+O FND-01 valida o fluxo:
 
 ```text
-PySpark -> Apache Iceberg -> Apache Polaris -> RustFS
-                         \-> PostgreSQL (persistencia do catalogo)
+PySpark -> Apache Iceberg -> Iceberg REST Catalog -> Apache Polaris -> RustFS
+                                      |
+                                      +-> PostgreSQL persiste o estado do Polaris
 ```
 
-O experimento nao implementa ainda Control Plane, portal, Airflow, Trino, dbt ou observabilidade distribuida. Consulte [experiments/fnd01/README.md](experiments/fnd01/README.md) para executar o smoke test e provar a persistencia apos restart. A homologacao de versoes e a instalacao limpa do FND-02 estao documentadas em [docs/architecture/fnd02-version-matrix.md](docs/architecture/fnd02-version-matrix.md).
+Consulte [experiments/fnd01/README.md](experiments/fnd01/README.md) para o smoke test e [docs/architecture/fnd02-version-matrix.md](docs/architecture/fnd02-version-matrix.md) para a homologacao de versoes do FND-02.
 
-## Primeiros passos planejados
+## Pre-requisitos
 
-1. Fechar a fundacao do MVP 00: ambiente local, CI, convencoes e ADRs minimas.
-2. Criar fixture do primeiro pipeline.
-3. Evoluir o laboratorio FND-01 para o primeiro pipeline batch.
-4. Implementar o caminho PostgreSQL -> Bronze/Silver/Gold.
-5. Registrar evidencias por issue Jira e commit.
+- Git.
+- Docker Desktop com Docker Compose v2.
+- PowerShell 7 ou Windows PowerShell compativel com os scripts.
+- Make e opcional; os scripts PowerShell sao a referencia.
+- Acesso a internet na primeira obtencao das imagens e dependencias.
 
-## Status
+## Comandos locais
 
-FND-01 esta validado como spike local: a execucao completa do Docker gravou e leu a tabela Iceberg e repetiu a leitura apos restart sem remover os volumes persistentes.
+```powershell
+Copy-Item .env.example .env
+./scripts/fnd01.ps1 up
+./scripts/fnd01.ps1 test
+./scripts/fnd01.ps1 down
+```
+
+Para o FND-02, use os scripts de validacao de checksum e de instalacao limpa:
+
+```powershell
+./scripts/fnd02-checksum-validation.ps1
+./scripts/fnd02-clean-validation.ps1
+```
+
+`down` preserva os volumes do laboratorio. `clean` remove containers, volumes e dados temporarios do FND-01; use-o somente quando a instalacao limpa for o objetivo. O FND-02 usa portas efemeras para coexistir com um ambiente FND-01 ativo.
+
+## Contribuicao
+
+Leia [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir uma mudanca. O arquivo define branch, commit, PR, evidencias, segredos, ADRs e limites de dependencias. A responsabilidade de revisao padrao esta em [.github/CODEOWNERS](.github/CODEOWNERS); isso nao transforma o revisor em Data Owner, Technical Owner ou dono de Data Product.
+
+## Proximos passos
+
+O proximo trabalho deve iniciar pelo FND-04 somente apos a revisao deste PR. FND-03 nao cria API, portal, pipeline, CI, banco, migracao, Airflow, Kubernetes ou um segundo repositorio.
