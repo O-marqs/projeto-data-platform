@@ -2,7 +2,7 @@
 
 ## Resultado
 
-`FND-03 = CONCLUIDO` para o escopo documental e de convencoes do PDP-21.
+`FND-03 = PASS` para o escopo documental e de convencoes do PDP-21. O card Jira nao foi movido para `Feito`.
 
 O card manteve o monorepo, nao criou servicos ou repositorios adicionais e nao alterou o runtime dos FND-01/FND-02.
 
@@ -12,6 +12,7 @@ O card manteve o monorepo, nao criou servicos ou repositorios adicionais e nao a
 - Branch de trabalho: `feat/fnd03-monorepo-conventions`
 - Commit base auditado: `fa3fa29` (main apos merge do PR #2)
 - Commit da implementacao documental: `9e384b1`
+- Commit efetivamente validado nesta revisao: `28ce0ac`
 - Sistema operacional: Windows no ambiente Codex Desktop
 - Data da auditoria: 2026-09-21
 - Escopo: revisao estrutural e documental; nenhuma mudanca funcional
@@ -60,8 +61,11 @@ Os executaveis auditados foram scripts operacionais, `experiments/fnd01/src/run_
 | README operacional atualizado | PASS | Pre-requisitos, comandos, status e layout |
 | CONTRIBUTING operacional atualizado | PASS | Jira, branches, commits, PRs, segredos e evidencia |
 | CODEOWNERS criado | PASS | `.github/CODEOWNERS` com `* @O-marqs` |
+| Owner do CODEOWNERS valido | PASS | `@O-marqs` e o owner do repositorio; nenhuma equipe foi inventada |
 | Links e caminhos locais validos | PASS | Verificacao documental executada |
+| Comandos e arquivos publicados existem | PASS | Scripts encontrados e `docker compose config` aprovado com `.env.example` |
 | Mudanca funcional FND-01/FND-02 | PASS | Nenhum arquivo de runtime alterado |
+| FND-04/FND-05 e novas capabilities preservados fora do escopo | PASS | Nenhum servico, core, CI ou capability nova criada |
 | Teste E2E completo do laboratorio | NAO EXECUTADO | Fora do necessario para mudanca apenas documental |
 | Teste de isolamento do core | NAO APLICAVEL | Core ainda nao existe |
 | CI | NAO EXECUTADO | CI e escopo futuro, fora deste card |
@@ -74,6 +78,9 @@ Os executaveis auditados foram scripts operacionais, `experiments/fnd01/src/run_
 - Verificacao de links e caminhos locais nos documentos alterados.
 - Verificacao de que `.env` nao esta rastreado e que nao ha credenciais reais nos arquivos alterados.
 - Verificacao de que a mudanca nao toca Compose, scripts de runtime, codigo PySpark ou configuracoes FND-01/FND-02.
+- Verificacao de que os scripts documentados existem e podem ser resolvidos pelo PowerShell.
+- `docker compose --env-file .env.example -f infra/local/docker-compose.yml config --quiet` com resultado PASS.
+- Verificacao de que `@O-marqs` e um owner valido do repositorio e de que nao ha equipe ficticia no CODEOWNERS.
 
 ## Verificacoes nao executadas
 
@@ -89,3 +96,7 @@ O Docker Compose completo, smoke test, restart com volumes e homologacao FND-02 
 ## Proximo passo
 
 Submeter este PR para revisao. Nao marcar o Jira como concluido automaticamente e nao avancar FND-04 antes da aprovacao humana.
+
+## Conclusao dos criterios do PDP-21
+
+Todos os criterios aplicaveis do PDP-21 foram demonstrados nesta revisao. Os unicos itens sem execucao funcional sao o E2E Docker completo e o CI; o primeiro permaneceu inalterado e o segundo ainda e planejado. O teste de isolamento do core e `NAO APLICAVEL` porque nao existe core executavel no repositorio.
