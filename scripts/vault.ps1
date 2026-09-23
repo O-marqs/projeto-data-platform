@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("up", "status", "init", "unseal", "configure", "down", "clean")]
+    [ValidateSet("up", "status", "init", "unseal", "configure", "issue-credential", "down", "clean")]
     [string]$Action = "status",
     [string]$ProjectName = "pdp-vault",
     [string]$EnvFile = "",
@@ -8,7 +8,8 @@ param(
     [string]$DomainId = "",
     [string]$ConnectionId = "",
     [string]$WorkloadId = "",
-    [string]$SecretRef = ""
+    [string]$SecretRef = "",
+    [switch]$ConfirmDestructiveClean
 )
 
 $ErrorActionPreference = "Stop"
@@ -62,6 +63,43 @@ function Get-FullExternalPath {
         New-Item -ItemType Directory -Force -Path $parent | Out-Null
     }
     return $fullPath
+}
+
+function Get-EnvSetting {
+    param([string]$Name, [string]$Default)
+    $setting = Get-Content -LiteralPath $envPath | Where-Object { $_ -match "^\s*$Name\s*=" } | Select-Object -First 1
+    if ($setting -and $setting -match "=\s*([^\s#]+)") {
+        return $Matches[1]
+    }
+    return $Default
+}
+
+function Protect-OperatorFile {
+    param([string]$Path)
+    if (-not ($IsWindows -or $env:OS -eq "Windows_NT")) {
+        throw "Protecao ACL do operador requer o ambiente Windows do laboratorio."
+    }
+    try {
+        $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        if (-not $identity) { throw "identidade do operador nao foi resolvida" }
+        $acl = New-Object System.Security.AccessControl.FileSecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $identity,
+            [System.Security.AccessControl.FileSystemRights]::FullControl,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+        $acl.SetAccessRule($rule)
+        Set-Acl -LiteralPath $Path -AclObject $acl
+
+        $verified = Get-Acl -LiteralPath $Path
+        $allowed = @($verified.Access | Where-Object { $_.AccessControlType -eq "Allow" })
+        if ($allowed.Count -ne 1 -or $allowed[0].IdentityReference.Value -ne $identity) {
+            throw "ACL verificada contem acessos alem do operador atual"
+        }
+    } catch {
+        throw "Protecao do arquivo operacional falhou; o arquivo nao pode ser usado com seguranca: $($_.Exception.Message)"
+    }
 }
 
 function Invoke-VaultApi {
@@ -121,11 +159,21 @@ function Write-SecureJson {
     param([string]$Path, [object]$Value)
     $fullPath = Get-FullExternalPath -Path $Path -Description "Arquivo de credenciais"
     $json = $Value | ConvertTo-Json -Depth 8
-    Set-Content -LiteralPath $fullPath -Value $json -Encoding UTF8 -NoNewline
-    if ($IsWindows -or $env:OS -eq "Windows_NT") {
-        & icacls $fullPath /inheritance:r /grant:r "${env:USERNAME}:(F)" | Out-Null
+    try {
+        Set-Content -LiteralPath $fullPath -Value $json -Encoding UTF8 -NoNewline
+        Protect-OperatorFile -Path $fullPath
+    } catch {
+        Remove-Item -LiteralPath $fullPath -Force -ErrorAction SilentlyContinue
+        throw
     }
     return $fullPath
+}
+
+function Get-WorkloadRoleName {
+    param([string]$ConnectionId, [string]$WorkloadId)
+    $safeConnection = $ConnectionId.Replace('-', '')
+    $safeWorkload = $WorkloadId -replace '[^A-Za-z0-9_-]', '-'
+    return "pdp-workload-$safeWorkload-$safeConnection"
 }
 
 switch ($Action) {
@@ -147,7 +195,13 @@ switch ($Action) {
             secret_shares = 5
             secret_threshold = 3
         }
-        $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $fullRecoveryFile -Encoding UTF8 -NoNewline
+        try {
+            $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $fullRecoveryFile -Encoding UTF8 -NoNewline
+            Protect-OperatorFile -Path $fullRecoveryFile
+        } catch {
+            Remove-Item -LiteralPath $fullRecoveryFile -Force -ErrorAction SilentlyContinue
+            throw "Init interrompido: o material de recovery nao foi protegido e foi removido."
+        }
         Write-Output "Vault inicializado. Material de recovery gravado fora do repositorio; mantenha-o offline."
     }
     "unseal" {
@@ -200,9 +254,8 @@ switch ($Action) {
                 Invoke-VaultApi -Method POST -Path "/v1/sys/auth/$approleMount" -Token $adminToken -Body @{ type = "approle" } | Out-Null
             }
             $safeConnection = $ConnectionId.Replace('-', '')
-            $safeWorkload = ($WorkloadId -replace '[^A-Za-z0-9_-]', '-')
             $policyName = "pdp-connection-$safeConnection"
-            $roleName = "pdp-workload-$safeWorkload-$safeConnection"
+            $roleName = Get-WorkloadRoleName -ConnectionId $ConnectionId -WorkloadId $WorkloadId
             $secretPath = "connections/$DomainId/$ConnectionId/$SecretRef"
             $policy = @"
 path "$kvMount/data/$secretPath" {
@@ -238,11 +291,49 @@ path "$kvMount/data/$secretPath" {
             if ($secretValue) { Clear-Variable secretValue -ErrorAction SilentlyContinue }
         }
     }
+    "issue-credential" {
+        foreach ($value in @($DomainId, $ConnectionId, $WorkloadId, $CredentialFile)) {
+            if (-not $value) { throw "issue-credential exige DomainId, ConnectionId, WorkloadId e CredentialFile." }
+        }
+        $parsedDomain = [guid]::Empty
+        $parsedConnection = [guid]::Empty
+        if (-not [guid]::TryParse($DomainId, [ref]$parsedDomain) -or
+            -not [guid]::TryParse($ConnectionId, [ref]$parsedConnection)) {
+            throw "DomainId e ConnectionId devem ser UUIDs."
+        }
+        $status = Get-VaultStatus
+        if (-not $status.initialized -or $status.sealed) {
+            throw "Vault precisa estar inicializado e desbloqueado antes da emissao da credencial."
+        }
+        $adminSecure = Read-Host "Token administrativo temporario do Vault" -AsSecureString
+        $adminToken = ConvertFrom-SecureStringValue $adminSecure
+        try {
+            $roleName = Get-WorkloadRoleName -ConnectionId $ConnectionId -WorkloadId $WorkloadId
+            $roleId = (Invoke-VaultApi -Method GET -Path "/v1/auth/$approleMount/role/$roleName/role-id" -Token $adminToken).data.role_id
+            $secretMetadata = @{
+                domain_id = $DomainId
+                connection_id = $ConnectionId
+                workload_id = $WorkloadId
+            } | ConvertTo-Json -Compress
+            $secretId = (Invoke-VaultApi -Method POST -Path "/v1/auth/$approleMount/role/$roleName/secret-id" -Token $adminToken -Body @{ metadata = $secretMetadata }).data.secret_id
+            $credentialPath = Write-SecureJson -Path $CredentialFile -Value @{ role_id = $roleId; secret_id = $secretId }
+            Write-Output "SecretID de uso unico emitido para a execucao do workload; credencial gravada em $credentialPath."
+        } finally {
+            if ($adminToken) { Clear-Variable adminToken -ErrorAction SilentlyContinue }
+        }
+    }
     "down" {
         Invoke-Compose down --remove-orphans
         Write-Output "Vault parado; volume persistente preservado."
     }
     "clean" {
+        if (-not $ConfirmDestructiveClean) {
+            throw "clean e destrutivo; confirme explicitamente com -ConfirmDestructiveClean."
+        }
+        $configuredVolume = Get-EnvSetting -Name "VAULT_VOLUME_NAME" -Default "pdp_vault_data"
+        if ($configuredVolume -eq "pdp_vault_data" -and $ProjectName -ne "pdp-vault") {
+            throw "clean bloqueado: o projeto $ProjectName resolve o volume persistente padrao pdp_vault_data. Use o projeto pdp-vault ou um VAULT_VOLUME_NAME descartavel."
+        }
         Invoke-Compose down --volumes --remove-orphans
         Write-Output "Somente os recursos do projeto Vault $ProjectName foram removidos."
     }

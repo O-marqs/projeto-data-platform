@@ -171,6 +171,9 @@ nao e gravado no banco e nao e impresso pelos scripts.
 ./scripts/vault.ps1 -Action status
 ./scripts/vault.ps1 -Action init -RecoveryFile C:\secure\pdp-vault-recovery.json
 ./scripts/vault.ps1 -Action unseal -RecoveryFile C:\secure\pdp-vault-recovery.json
+./scripts/vault.ps1 -Action issue-credential `
+  -DomainId <domain-uuid> -ConnectionId <connection-uuid> `
+  -WorkloadId <workload-id> -CredentialFile C:\secure\pdp-workload-run.json
 ./scripts/sec01.ps1 -Action test
 ```
 
@@ -181,7 +184,10 @@ persistent, AppRole com policy de leitura de um caminho KV2 concreto, token de
 servico com TTL curto e SecretID de uso unico. Nenhuma aplicacao recebe
 root token ou chave de unseal. Rotacao atualiza o valor no mesmo `secret_ref` e
 revogacao invalida o token de workload. O runbook descreve backup/restore e
-recovery fora do Git.
+recovery fora do Git. `init` protege o arquivo de recovery com ACL exclusiva
+do operador no Windows e falha removendo o arquivo se a protecao nao puder
+ser confirmada. `issue-credential` emite um SecretID novo por execucao sem
+refazer a configuracao nem entregar token administrativo ao runtime.
 
 ## Logs, parada e limpeza
 

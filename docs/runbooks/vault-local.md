@@ -45,6 +45,15 @@ Valide a politica juridica da organizacao antes de redistribuir o produto.
    ./scripts/vault.ps1 -Action init -RecoveryFile C:\secure\pdp-vault-recovery.json
    ```
 
+   No Windows, `init` desabilita a heranca de ACL e concede FullControl
+   somente a identidade do operador que executou o comando. O script verifica
+   a ACL depois da gravacao; se nao conseguir aplicar ou confirmar essa
+   protecao, remove o arquivo e falha sem deixar material de recovery exposto.
+   Guarde uma copia offline, criptografada e separada das chaves de unseal e do
+   root token, por exemplo em armazenamento removivel protegido por BitLocker.
+   Nao deixe a unica copia no computador do laboratorio e nao coloque esse
+   material em Git, chat, issue, imagem Docker ou log.
+
 3. Desbloqueie com tres das cinco chaves gravadas no arquivo externo.
 
    ```powershell
@@ -77,6 +86,27 @@ conta apenas com RoleID e SecretID; nunca contém o root token ou as chaves de
 unseal. O runtime deve receber esse arquivo por mecanismo de segredo do
 ambiente e não deve gravar seu conteúdo em logs.
 
+## Emitir credencial por execucao
+
+Depois que `configure` registrar a Connection, cada execucao de workload deve
+receber um SecretID novo. O procedimento abaixo le a role ja existente,
+emite um SecretID de uso unico e grava somente RoleID/SecretID no arquivo
+externo:
+
+```powershell
+./scripts/vault.ps1 -Action issue-credential `
+  -DomainId <domain-uuid> `
+  -ConnectionId <connection-uuid> `
+  -WorkloadId <workload-id> `
+  -CredentialFile C:\secure\pdp-workload-run-<id>.json
+```
+
+Ele solicita um token administrativo temporario apenas no host do operador,
+nao executa `configure` novamente, nao altera o valor KV ou a Connection e
+nao entrega o token administrativo ao runtime. O arquivo de credencial deve
+ser removido ao terminar a execucao. Reutilizar o SecretID anterior deve
+falhar por construcao (`secret_id_num_uses=1`).
+
 ## Fronteira do runtime
 
 `VaultSecretResolver` recebe um `connection_id`, uma identidade de workload
@@ -101,14 +131,25 @@ administrativo temporario. A evidencia do SEC-01 executa ambas as verificacoes.
 
 ## Restart, backup e restore
 
-`down` preserva `pdp_vault_data`; `clean` e destrutivo e deve ser usado somente
-quando o laboratorio puder perder o cofre.
+`down` preserva `pdp_vault_data`. `clean` sempre exige
+`-ConfirmDestructiveClean`. O projeto normal `pdp-vault` pode remover o
+volume persistente padrao somente com essa confirmacao explicita. Um projeto
+alternativo e bloqueado se o `.env` ainda resolver o nome explicito
+`pdp_vault_data`, mesmo que a confirmacao tenha sido passada; isso evita a
+falsa sensacao de isolamento criada apenas por trocar `ProjectName`.
 
 ```powershell
 ./scripts/vault.ps1 -Action down
 ./scripts/vault.ps1 -Action up
 ./scripts/vault.ps1 -Action unseal -RecoveryFile C:\secure\pdp-vault-recovery.json
+# somente para um ambiente que possa ser destruido:
+./scripts/vault.ps1 -Action clean -ConfirmDestructiveClean
 ```
+
+Para um ambiente descartavel, use tambem `VAULT_VOLUME_NAME` e
+`VAULT_NETWORK_NAME` unicos no `.env` informado ao script. A limpeza explicita
+remove somente esse ambiente. Nunca use o volume padrao do Vault ou volumes
+de FND-01/FND-02/FND-04 em testes destrutivos.
 
 Para um ensaio de backup/restore, use um projeto e volume descartaveis, nunca
 `pdp-vault` nem os volumes de FND-01/FND-02/FND-04. Com Vault ativo, o operador
@@ -127,7 +168,8 @@ snapshot contem segredos e deve permanecer fora do Git.
 - `host.docker.internal`: depende de Docker Desktop/host gateway; em Linux
   sem esse recurso, substitua `VAULT_ADDR` por um endpoint acessivel na rede
   local, sem tornar o endpoint publico;
-- recovery e backup: responsabilidade do operador, sempre fora do Git.
+- recovery e backup: responsabilidade do operador; mantenha as copias
+  offline, criptografadas, com acesso restrito e fora do Git.
 
 O fluxo completo e reproduzivel com:
 

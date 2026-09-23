@@ -28,6 +28,7 @@ $vaultVolume = "pdp-sec01-test-vault-$suffix-data"
 $vaultNetwork = "pdp-sec01-test-vault-$suffix-network"
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "pdp-sec01-$suffix"
 $credentialFile = Join-Path $tempRoot "workload.json"
+$previousCredentialFile = Join-Path $tempRoot "previous-workload.json"
 $caseFile = Join-Path $tempRoot "case.json"
 
 $normalVolumes = @(
@@ -178,29 +179,36 @@ function Invoke-ControlSql {
 }
 
 function Invoke-IntegrationTest {
-    param([string]$Mode)
+    param(
+        [string]$Mode,
+        [string]$CredentialPath = "",
+        [string]$TestFilter = ""
+    )
+    if (-not $CredentialPath) { $CredentialPath = $credentialFile }
     $case = Get-Content -LiteralPath $caseFile -Raw | ConvertFrom-Json
     $case.mode = $Mode
     Write-JsonFile $caseFile $case
     $compose = @("--project-name", $controlProject, "--env-file", $envPath, "-f", $controlComposeFile)
     $runArguments = @(
         "run", "--no-deps", "--build", "--rm",
-        "-v", "${credentialFile}:/run/secrets/sec01-workload.json:ro",
+        "-v", "${CredentialPath}:/run/secrets/sec01-workload.json:ro",
         "-v", "${caseFile}:/run/secrets/sec01-case.json:ro",
         "control-api-test", "pytest", "-q", "tests/test_vault_integration.py"
     )
+    if ($TestFilter) { $runArguments += @("-k", $TestFilter) }
     Invoke-Compose $compose @runArguments
 }
 
 function Invoke-FailureTest {
-    param([string]$Mode)
+    param([string]$Mode, [string]$CredentialPath = "")
+    if (-not $CredentialPath) { $CredentialPath = $credentialFile }
     $case = Get-Content -LiteralPath $caseFile -Raw | ConvertFrom-Json
     $case.mode = $Mode
     Write-JsonFile $caseFile $case
     $compose = @("--project-name", $controlProject, "--env-file", $envPath, "-f", $controlComposeFile)
     $runArguments = @(
         "run", "--no-deps", "--rm",
-        "-v", "${credentialFile}:/run/secrets/sec01-workload.json:ro",
+        "-v", "${CredentialPath}:/run/secrets/sec01-workload.json:ro",
         "-v", "${caseFile}:/run/secrets/sec01-case.json:ro",
         "control-api-test", "pytest", "-q", "tests/test_vault_integration.py", "-k", "failure"
     )
@@ -368,7 +376,16 @@ path "pdp/data/$secretPath" {
     $sameSecretRef = (& docker compose @controlCompose exec -T control-db psql -U $dbUser -d $dbName -tA -c "SELECT secret_ref FROM connections WHERE id = '$connection1';").Trim()
     if ($LASTEXITCODE -ne 0 -or $sameSecretRef -ne $secretRef1) { throw "secret_ref da Connection mudou durante a rotacao inicial." }
 
+    Copy-Item -LiteralPath $credentialFile -Destination $previousCredentialFile -Force
+    $firstCredential = Get-Content -LiteralPath $credentialFile -Raw | ConvertFrom-Json
     Write-WorkloadCredential -Token $rootToken -RoleName $roleName -RoleId $roleId -DomainId $domain1 -ConnectionId $connection1 -WorkloadId $workloadId
+    $secondCredential = Get-Content -LiteralPath $credentialFile -Raw | ConvertFrom-Json
+    if ($firstCredential.role_id -ne $secondCredential.role_id -or
+        $firstCredential.secret_id -eq $secondCredential.secret_id) {
+        throw "As execucoes sucessivas nao receberam SecretIDs distintos para o mesmo workload."
+    }
+    Invoke-IntegrationTest -Mode "previous_credential" -CredentialPath $previousCredentialFile -TestFilter "previous_workload_credential"
+    Write-Output "SEC-01 successive workload credentials PASS (SecretIDs distintos; credencial anterior negada)."
     Set-VaultSecret -Token $rootToken -Path $secretPath -SecretRef $secretRef1 -Value $marker2
     $case = Get-Content -LiteralPath $caseFile -Raw | ConvertFrom-Json
     $case.expected_value = $marker2

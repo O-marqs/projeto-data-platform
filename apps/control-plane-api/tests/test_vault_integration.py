@@ -110,3 +110,13 @@ def test_vault_failure_is_controlled() -> None:
         assert isinstance(caught.value, VaultUnavailable)
     else:
         assert isinstance(caught.value, VaultSealed)
+
+
+def test_previous_workload_credential_is_rejected() -> None:
+    case = _case()
+    if case.get("mode") != "previous_credential":
+        pytest.skip("previous credential test is executed after a new SecretID is issued")
+
+    credentials = _credentials()
+    with pytest.raises(VaultAuthenticationFailed):
+        _client().authenticate_approle(credentials["role_id"], credentials["secret_id"])
