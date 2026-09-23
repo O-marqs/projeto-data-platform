@@ -15,6 +15,7 @@ Construir uma plataforma de dados reproduzivel, segura e evolutiva. A fundacao a
 | FND-03 | IMPLEMENTADO neste card | [organizacao do monorepo](docs/architecture/monorepo-organization.md) |
 | FND-04 | IMPLEMENTADO neste card | [evidencia FND-04](experiments/fnd04/evidence/fnd04-validation-2026-09-21.md) |
 | FND-06 | IMPLEMENTADO neste card | [evidencia FND-06](experiments/fnd06/evidence/fnd06-validation-2026-09-22.md) |
+| SEC-01 | IMPLEMENTADO: Vault local de laboratorio | [evidencia SEC-01](experiments/sec01/evidence/sec01-validation-2026-09-23.md) |
 | Control Plane API | IMPLEMENTADO: base FastAPI, health/readiness e migrations | [apps/control-plane-api/README.md](apps/control-plane-api/README.md) |
 | Portal | ESTRUTURA RESERVADA PARA EVOLUCAO | [apps/portal/README.md](apps/portal/README.md) |
 | Contratos compartilhados | ESTRUTURA RESERVADA PARA EVOLUCAO | [libs/platform-contracts/README.md](libs/platform-contracts/README.md) |
@@ -36,6 +37,7 @@ libs/
 infra/
   local/                 Ambientes locais isolados dos laboratorios
     control-plane/       Compose do Control Plane e seu PostgreSQL
+    vault/               Compose do Vault local e persistencia Raft
 experiments/
   fnd01/                 Laboratorio Spark + Iceberg + Polaris + RustFS
   fnd02/                 Evidencias de homologacao e instalacao limpa
@@ -110,9 +112,22 @@ O ambiente normal do FND-04 usa o database `control_db`, o volume `pdp-fnd04_con
 
 Leia [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir uma mudanca. O arquivo define branch, commit, PR, evidencias, segredos, ADRs e limites de dependencias. A responsabilidade de revisao padrao esta em [.github/CODEOWNERS](.github/CODEOWNERS); isso nao transforma o revisor em Data Owner, Technical Owner ou dono de Data Product.
 
+## Vault local
+
+O SEC-01 adiciona um Vault Community Edition single-node para o laboratorio.
+Ele usa a imagem `hashicorp/vault:2.1.1` por digest fixo, armazenamento Raft
+no volume `pdp_vault_data`, porta loopback `18200` e AppRole com policy minima
+por Connection. O Vault nao e usado em modo dev; init, unseal, recovery,
+backup/restore, rotacao e revogacao sao manuais e descritos no
+[runbook local](docs/runbooks/vault-local.md). Root token, chaves de unseal,
+RoleID e SecretID ficam fora do Git. O `scripts/sec01.ps1 -Action test` usa
+projeto, banco, rede, portas e volumes efemeros e nunca usa o volume normal do
+FND-04, FND-01 ou FND-02.
+
 ## Proximos passos
 
 O FND-04 implementa a base FastAPI, Control DB, migrations e diagnostico local.
 O FND-06 adiciona somente a fronteira minima de Connection, autorizacao por
-dominio e protecao de referencias de segredo. Pipelines, portal, Keycloak,
-Vault, CI/CD e o restante do Control Plane permanecem fora destes cards.
+dominio e protecao de referencias de segredo. O SEC-01 fecha o gate local de
+segredos; pipelines, portal, Keycloak, CI/CD e o restante do Control Plane
+permanecem fora destes cards.

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CURRENT_MIGRATION_REVISION = "0004_connection_public_schema"
@@ -19,6 +19,18 @@ class Settings(BaseSettings):
         "@control-db:5432/control_db"
     )
     required_migration_revision: str = CURRENT_MIGRATION_REVISION
+    vault_addr: str = Field(
+        default="http://host.docker.internal:18200",
+        validation_alias=AliasChoices("CONTROL_VAULT_ADDR", "VAULT_ADDR"),
+    )
+    vault_approle_mount: str = Field(
+        default="approle",
+        validation_alias=AliasChoices("CONTROL_VAULT_APPROLE_MOUNT", "VAULT_APPROLE_MOUNT"),
+    )
+    vault_kv_mount: str = Field(
+        default="pdp",
+        validation_alias=AliasChoices("CONTROL_VAULT_KV_MOUNT", "VAULT_KV_MOUNT"),
+    )
 
     model_config = SettingsConfigDict(
         env_prefix="CONTROL_",

@@ -21,6 +21,9 @@ data/
 tmp/
 *.db
 *.sqlite
+*.snap
+vault-recovery*.json
+pdp-workload*.json
 infra/local/postgres/data/
 infra/local/rustfs/data/
 

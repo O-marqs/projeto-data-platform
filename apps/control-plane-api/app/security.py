@@ -146,11 +146,11 @@ def validate_public_config(value: Any, connection_type: str) -> dict[str, Any]:
 
 
 class SecretResolutionUnavailable(RuntimeError):
-    """Raised until SEC-01 supplies a real, authenticated secret resolver."""
+    """Raised when the base resolver has not been replaced by a real one."""
 
 
 class SecretResolver:
-    """Contract for SEC-01; this card deliberately provides no resolver."""
+    """Base contract; VaultSecretResolver is the opt-in SEC-01 implementation."""
 
     def resolve(
         self,
