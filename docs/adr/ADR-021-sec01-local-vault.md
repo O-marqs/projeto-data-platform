@@ -20,7 +20,7 @@ O volume `pdp_vault_data` persiste o estado e o Compose nao usa dev mode.
 
 O operador inicializa e desbloqueia manualmente com cinco shares e limiar de
 tres; recovery e root token ficam fora do repositorio. Workloads usam AppRole
-com service token de TTL curto e SecretID limitado. Cada policy le somente o
+com service token de TTL curto e SecretID de uso unico. Cada policy le somente o
 caminho KV2 derivado de uma Connection persistida. O resolver consulta o
 Control DB para obter dominio, ID e `secret_ref`; uma referencia arbitraria do
 chamador nao e autorizacao.

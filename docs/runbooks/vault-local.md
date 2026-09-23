@@ -88,7 +88,7 @@ nao autoriza leitura. A API HTTP continua retornando somente configuracao
 publica; o valor nunca aparece em resposta, erro ou log.
 
 Workload tokens sao `service`, com TTL de cinco minutos, max TTL de dez minutos
-e SecretID de uso limitado. O workload nao recebe root token, chave de unseal
+e SecretID de uso unico. O workload nao recebe root token, chave de unseal
 ou permissao administrativa.
 
 ## Rotacao e revogacao

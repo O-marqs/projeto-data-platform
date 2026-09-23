@@ -178,7 +178,7 @@ nao e gravado no banco e nao e impresso pelos scripts.
 indicado; nenhum desses valores deve entrar no repositorio, imagem ou log. O
 Vault nao usa dev mode. A configuracao usa armazenamento Raft single-node
 persistent, AppRole com policy de leitura de um caminho KV2 concreto, token de
-servico com TTL curto e SecretID de uso limitado. Nenhuma aplicacao recebe
+servico com TTL curto e SecretID de uso unico. Nenhuma aplicacao recebe
 root token ou chave de unseal. Rotacao atualiza o valor no mesmo `secret_ref` e
 revogacao invalida o token de workload. O runbook descreve backup/restore e
 recovery fora do Git.

@@ -113,11 +113,16 @@ class VaultClient:
         return decoded
 
     def authenticate_approle(self, role_id: str, secret_id: str) -> VaultWorkloadIdentity:
-        response = self._request(
-            "POST",
-            f"/v1/auth/{quote(self.approle_mount, safe='')}/login",
-            payload={"role_id": role_id, "secret_id": secret_id},
-        )
+        try:
+            response = self._request(
+                "POST",
+                f"/v1/auth/{quote(self.approle_mount, safe='')}/login",
+                payload={"role_id": role_id, "secret_id": secret_id},
+            )
+        except (VaultAccessDenied, VaultSealed, VaultUnavailable):
+            raise
+        except VaultError:
+            raise VaultAuthenticationFailed("Vault rejected the workload credentials") from None
         auth = response.get("auth")
         if not isinstance(auth, dict):
             raise VaultAuthenticationFailed("Vault did not return an AppRole session")

@@ -9,6 +9,7 @@ from app.db import create_engine_for_settings, create_session_factory
 from app.config import Settings
 from app.vault import (
     VaultAccessDenied,
+    VaultAuthenticationFailed,
     VaultClient,
     VaultSealed,
     VaultSecretResolver,
@@ -47,9 +48,15 @@ def test_vault_workload_is_scoped_and_revocable() -> None:
     session = factory()
     try:
         client = _client()
+        with pytest.raises(VaultAuthenticationFailed):
+            client.authenticate_approle(credentials["role_id"], "synthetic-invalid-secret-id")
         workload = client.authenticate_approle(
             credentials["role_id"], credentials["secret_id"]
         )
+        with pytest.raises(VaultAuthenticationFailed):
+            client.authenticate_approle(
+                credentials["role_id"], credentials["secret_id"]
+            )
         resolver = VaultSecretResolver(client, workload)
         first_connection_id = UUID(case["connection_id"])
         second_connection_id = UUID(case["other_connection_id"])

@@ -216,7 +216,7 @@ path "$kvMount/data/$secretPath" {
                 token_ttl = "5m"
                 token_max_ttl = "10m"
                 secret_id_ttl = "10m"
-                secret_id_num_uses = 3
+                secret_id_num_uses = 1
                 metadata = @{
                     domain_id = $DomainId
                     connection_id = $ConnectionId

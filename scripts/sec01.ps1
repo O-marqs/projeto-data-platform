@@ -212,6 +212,17 @@ function Set-VaultSecret {
     Invoke-VaultApi -Method POST -Path "/v1/pdp/data/$Path" -Token $Token -Body @{ data = @{ secret_ref = $SecretRef; value = $Value } } | Out-Null
 }
 
+function Write-WorkloadCredential {
+    param([string]$Token, [string]$RoleName, [string]$RoleId, [string]$DomainId, [string]$ConnectionId, [string]$WorkloadId)
+    $secretMetadata = @{
+        domain_id = $DomainId
+        connection_id = $ConnectionId
+        workload_id = $WorkloadId
+    } | ConvertTo-Json -Compress
+    $secretId = (Invoke-VaultApi -Method POST -Path "/v1/auth/approle/role/$RoleName/secret-id" -Token $Token -Body @{ metadata = $secretMetadata }).data.secret_id
+    Write-JsonFile $credentialFile @{ role_id = $RoleId; secret_id = $secretId }
+}
+
 function Invoke-BackupRestoreRehearsal {
     param([string]$SourceToken, [string]$Path, [string]$ExpectedValue)
     $backupSuffix = ([guid]::NewGuid().ToString("N")).Substring(0, 8)
@@ -344,25 +355,20 @@ path "pdp/data/$secretPath" {
         token_ttl = "5m"
         token_max_ttl = "10m"
         secret_id_ttl = "10m"
-        secret_id_num_uses = 3
+        secret_id_num_uses = 1
         metadata = @{ domain_id = $domain1; connection_id = $connection1; workload_id = $workloadId }
     } | Out-Null
     $roleId = (Invoke-VaultApi -Method GET -Path "/v1/auth/approle/role/$roleName/role-id" -Token $rootToken).data.role_id
-    $secretMetadata = @{
-        domain_id = $domain1
-        connection_id = $connection1
-        workload_id = $workloadId
-    } | ConvertTo-Json -Compress
-    $secretId = (Invoke-VaultApi -Method POST -Path "/v1/auth/approle/role/$roleName/secret-id" -Token $rootToken -Body @{ metadata = $secretMetadata }).data.secret_id
     Set-VaultSecret -Token $rootToken -Path $secretPath -SecretRef $secretRef1 -Value $marker1
 
-    Write-JsonFile $credentialFile @{ role_id = $roleId; secret_id = $secretId }
+    Write-WorkloadCredential -Token $rootToken -RoleName $roleName -RoleId $roleId -DomainId $domain1 -ConnectionId $connection1 -WorkloadId $workloadId
     Write-JsonFile $caseFile @{ mode = "available"; connection_id = $connection1; other_connection_id = $connection2; expected_value = $marker1 }
 
     Invoke-IntegrationTest "available"
     $sameSecretRef = (& docker compose @controlCompose exec -T control-db psql -U $dbUser -d $dbName -tA -c "SELECT secret_ref FROM connections WHERE id = '$connection1';").Trim()
     if ($LASTEXITCODE -ne 0 -or $sameSecretRef -ne $secretRef1) { throw "secret_ref da Connection mudou durante a rotacao inicial." }
 
+    Write-WorkloadCredential -Token $rootToken -RoleName $roleName -RoleId $roleId -DomainId $domain1 -ConnectionId $connection1 -WorkloadId $workloadId
     Set-VaultSecret -Token $rootToken -Path $secretPath -SecretRef $secretRef1 -Value $marker2
     $case = Get-Content -LiteralPath $caseFile -Raw | ConvertFrom-Json
     $case.expected_value = $marker2
@@ -372,6 +378,8 @@ path "pdp/data/$secretPath" {
     if ($LASTEXITCODE -ne 0 -or $sameSecretRef -ne $secretRef1) { throw "rotacao alterou a Connection, mas deveria alterar somente o valor no Vault." }
 
     Invoke-BackupRestoreRehearsal -SourceToken $rootToken -Path $secretPath -ExpectedValue $marker2
+
+    Write-WorkloadCredential -Token $rootToken -RoleName $roleName -RoleId $roleId -DomainId $domain1 -ConnectionId $connection1 -WorkloadId $workloadId
 
     Invoke-VaultApi -Method PUT -Path "/v1/sys/seal" -Token $rootToken | Out-Null
     Invoke-FailureTest "sealed"
