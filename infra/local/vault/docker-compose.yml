@@ -1,0 +1,30 @@
+services:
+  vault:
+    image: hashicorp/vault:${VAULT_VERSION:-2.1.1}@${VAULT_IMAGE_DIGEST:-sha256:47f14a6acb98f48d798a07df7c83f23a6e636e1cf724c5f8ff165cb32667a1e2}
+    # The image runs as uid 100 by default. A named volume starts as root;
+    # drop privileges after fixing ownership before starting Vault.
+    user: "0:0"
+    ports:
+      - "127.0.0.1:${VAULT_API_HOST_PORT:-18200}:8200"
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+    command: ["sh", "-c", "chown -R 100:1000 /vault/data && exec su-exec vault vault server -config=/vault/config/vault.hcl"]
+    volumes:
+      - vault_data:/vault/data
+      - ./vault.hcl:/vault/config/vault.hcl:ro
+    networks:
+      - vault_net
+    healthcheck:
+      test: ["CMD-SHELL", "vault status >/dev/null 2>&1; code=$$?; test $$code -le 2"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  vault_data:
+    name: ${VAULT_VOLUME_NAME:-pdp_vault_data}
+
+networks:
+  vault_net:
+    name: ${VAULT_NETWORK_NAME:-pdp_vault_network}

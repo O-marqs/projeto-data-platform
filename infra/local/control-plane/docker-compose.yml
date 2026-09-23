@@ -40,6 +40,11 @@ services:
       CONTROL_LOG_LEVEL: ${CONTROL_LOG_LEVEL:-INFO}
       CONTROL_DATABASE_URL: postgresql+psycopg://${CONTROL_DB_USER:-control_user}:${CONTROL_DB_PASSWORD:-change-me-control-password}@control-db:5432/${CONTROL_DB_NAME:-control_db}
       CONTROL_REQUIRED_MIGRATION_REVISION: 0004_connection_public_schema
+      VAULT_ADDR: ${VAULT_ADDR:-http://host.docker.internal:18200}
+      VAULT_APPROLE_MOUNT: ${VAULT_APPROLE_MOUNT:-approle}
+      VAULT_KV_MOUNT: ${VAULT_KV_MOUNT:-pdp}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       control-migrate:
         condition: service_completed_successfully
@@ -61,6 +66,11 @@ services:
       CONTROL_LOG_LEVEL: ${CONTROL_LOG_LEVEL:-INFO}
       CONTROL_DATABASE_URL: postgresql+psycopg://${CONTROL_DB_USER:-control_user}:${CONTROL_DB_PASSWORD:-change-me-control-password}@control-db:5432/${CONTROL_DB_NAME:-control_db}
       CONTROL_REQUIRED_MIGRATION_REVISION: 0004_connection_public_schema
+      VAULT_ADDR: ${VAULT_ADDR:-http://host.docker.internal:18200}
+      VAULT_APPROLE_MOUNT: ${VAULT_APPROLE_MOUNT:-approle}
+      VAULT_KV_MOUNT: ${VAULT_KV_MOUNT:-pdp}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       control-api:
         condition: service_healthy

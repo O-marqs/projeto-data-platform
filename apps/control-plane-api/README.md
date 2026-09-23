@@ -1,6 +1,6 @@
 # Control Plane API
 
-Base executavel do Control Plane criada no FND-04/PDP-22 e ampliada no FND-06/PDP-24. Esta entrega fornece uma API FastAPI minima, um banco PostgreSQL dedicado, migrations Alembic, a fronteira de Connection e endpoints de health/readiness. Ela nao implementa o Control Plane completo.
+Base executavel do Control Plane criada no FND-04/PDP-22 e ampliada no FND-06/PDP-24. Esta entrega fornece uma API FastAPI minima, um banco PostgreSQL dedicado, migrations Alembic, a fronteira de Connection e endpoints de health/readiness. O SEC-01 adiciona somente a integracao local controlada com Vault para workloads; ela nao implementa o Control Plane completo.
 
 ## Escopo implementado
 
@@ -11,9 +11,10 @@ Base executavel do Control Plane criada no FND-04/PDP-22 e ampliada no FND-06/PD
 - UUIDs internos, foreign keys e unicidade por escopo no PostgreSQL.
 - Migration versionada em `alembic/versions/`.
 - Autorizacao minima por identidade confiavel, dominio e permissao para leitura de Connection.
+- Cliente Vault local com AppRole, policy por Connection persistida, TTL/revogacao e falha controlada quando o cofre esta sealed ou indisponivel.
 - Testes HTTP, autorizacao, vazamento e constraints executados contra PostgreSQL real no Compose.
 
-Nao implementado: Keycloak, Vault, login humano, autenticacao real, CRUD completo, membership, RBAC corporativo, datasets, pipelines, runs, contratos, auditoria, outbox, workers ou integracao com Polaris.
+Nao implementado: Keycloak, login humano, autenticacao OIDC, CRUD completo, membership, RBAC corporativo, datasets, pipelines, runs, contratos, auditoria, outbox, workers ou integracao com Polaris.
 
 ## Estrutura
 
@@ -24,6 +25,7 @@ apps/control-plane-api/
     db.py           engine e sessoes SQLAlchemy
     models.py       modelo relacional do FND-04/FND-06
     security.py     identidade, autorizacao e fronteira de segredos
+    vault.py        cliente AppRole e resolver ancorado em Connection
     main.py         composicao FastAPI e health/readiness
   alembic/
     env.py
@@ -60,6 +62,14 @@ containers pela conexao interna `control-db:5432/control_db`; no modo de testes,
 o script injeta `control_test_db` e o hostname interno correspondente. A
 aplicacao recebe `CONTROL_DATABASE_URL` por ambiente e nao usa host, porta,
 usuario ou senha do PostgreSQL do Polaris como fallback.
+
+O Vault local e independente do Control DB: usa o Compose
+`infra/local/vault/docker-compose.yml`, o projeto `pdp-vault`, o volume
+`pdp_vault_data`, a rede `pdp_vault_network` e a porta loopback `18200`. O
+Control Plane acessa o endpoint a partir do container por
+`VAULT_ADDR=http://host.docker.internal:18200`; `extra_hosts` torna esse
+endereco explicito no Docker Desktop. O procedimento de init/unseal e o
+material de recovery estao em [docs/runbooks/vault-local.md](../../docs/runbooks/vault-local.md).
 
 ## Subir somente o Control Plane
 
@@ -133,7 +143,7 @@ de identidade, permissao ou escopo resulta em negacao. O endpoint nao aceita
 Hoje `get_current_identity` nega por padrao. Os testes injetam identidades
 sinteticas via `app.dependency_overrides`, mecanismo interno que nao pode ser
 acionado por um cliente HTTP comum. Isso demonstra a fronteira de autorizacao,
-mas nao equivale a autenticacao humana ou de workload.
+mas nao equivale a autenticacao humana.
 
 Somente estes tipos sao suportados neste estagio: `postgresql` e `s3`. A
 configuracao publica e uma allowlist plana por tipo: PostgreSQL aceita apenas
@@ -148,8 +158,30 @@ do Control DB. Ele carrega a Connection persistida, confere o dominio, a
 permissao `connection:resolve`, o `workload_id` e a autorizacao para aquele ID
 concreto antes de consultar `secret_ref`. Referencias arbitrarias e IDs de
 outras Connections sao rejeitados. O metodo continua falhando explicitamente
-por nao haver resolvedor real; o SEC-01 podera conectar o Vault sem alterar o
-vinculo da Connection.
+por nao haver resolvedor base configurado. O `VaultSecretResolver` do SEC-01 so
+resolve uma Connection carregada do Control DB depois de um login AppRole cujo
+SecretID carrega `domain_id`, `connection_id` e `workload_id`; o caminho KV2 e
+calculado do registro persistido. O token de workload nao e retornado pela API,
+nao e gravado no banco e nao e impresso pelos scripts.
+
+## Operacao do Vault local
+
+```powershell
+./scripts/vault.ps1 -Action up
+./scripts/vault.ps1 -Action status
+./scripts/vault.ps1 -Action init -RecoveryFile C:\secure\pdp-vault-recovery.json
+./scripts/vault.ps1 -Action unseal -RecoveryFile C:\secure\pdp-vault-recovery.json
+./scripts/sec01.ps1 -Action test
+```
+
+`init` grava as chaves de unseal e o root token somente no arquivo externo
+indicado; nenhum desses valores deve entrar no repositorio, imagem ou log. O
+Vault nao usa dev mode. A configuracao usa armazenamento Raft single-node
+persistent, AppRole com policy de leitura de um caminho KV2 concreto, token de
+servico com TTL curto e SecretID de uso limitado. Nenhuma aplicacao recebe
+root token ou chave de unseal. Rotacao atualiza o valor no mesmo `secret_ref` e
+revogacao invalida o token de workload. O runbook descreve backup/restore e
+recovery fora do Git.
 
 ## Logs, parada e limpeza
 
@@ -175,7 +207,6 @@ O Control Plane depende somente de `CONTROL_DATABASE_URL` e de seu schema/migrat
 As foreign keys usam a politica padrao restritiva do PostgreSQL: nao ha `ON DELETE CASCADE` na migration. A remocao de uma Organization ou Domain com dependentes deve ser tratada explicitamente por uma futura capability de governanca; esta base nao apaga dados em cascata.
 
 A API e destinada ao laboratorio local. A autorizacao de Connection existe no
-backend, mas nao ha autenticacao real, Keycloak, Vault, TLS, rede publica ou
-garantia de seguranca para exposicao na internet. A resolucao real de segredos,
-autenticacao tecnica do runtime e login humano permanecem nos cards SEC-01 e
-SELF-05.
+backend e o SEC-01 fornece somente o Vault local/AppRole descrito acima; nao ha
+Keycloak, OIDC, TLS de producao, rede publica ou garantia de seguranca para
+exposicao na internet. Login humano permanece no SELF-05.
