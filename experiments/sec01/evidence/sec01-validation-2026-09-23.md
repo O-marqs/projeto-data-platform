@@ -6,7 +6,7 @@
 - Sistema operacional: Microsoft Windows 11 Pro
 - Docker Engine: 28.0.4
 - Docker Compose: v2.34.0-desktop.1
-- Commit de codigo validado: `bbf780587169eb27ed869274681abf34d1558b5c`
+- Commit de codigo validado: `dbe27e946d73054d6df140ccc20d3d0622e449e8`
 - Runner: `./scripts/sec01.ps1 -Action test -EnvFile .env`
 - Ambiente: Docker Desktop local, projetos Compose efemeros e valores
   exclusivamente sinteticos
@@ -16,7 +16,7 @@
 - Vault Community Edition `2.1.1`
 - Digest da imagem: `sha256:47f14a6acb98f48d798a07df7c83f23a6e636e1cf724c5f8ff165cb32667a1e2`
 - Storage: Raft single-node em volume de teste efemero
-- Auth: AppRole com SecretID limitado e token service com TTL
+- Auth: AppRole com SecretID de uso unico e token service com TTL
 - Secret store: KV v2, mount `pdp`
 - Control Plane: imagem Python 3.12.8 com Control DB PostgreSQL de teste
 - Connection: duas Connections sintéticas em dois domínios sintéticos
@@ -30,7 +30,9 @@
 | Volume persistente separado dos FND-01/FND-02/FND-04 | PASS | Teste usou volume `pdp-sec01-test-<run>-data`; volumes normais permaneceram presentes e inalterados |
 | Init e unseal manual | PASS | Cinco shares, limiar tres; material nao foi impresso nem versionado |
 | Recovery fora do Git | PASS | Runner grava fixtures temporarias fora do repositorio; scripts bloqueiam caminhos dentro do repo |
-| AppRole tecnico com escopo limitado | PASS | Policy ACL permite apenas `read` no caminho da Connection concreta; token service TTL 5m/max 10m; SecretID com usos limitados |
+| AppRole tecnico com escopo limitado | PASS | Policy ACL permite apenas `read` no caminho da Connection concreta; token service TTL 5m/max 10m; SecretID de uso unico |
+| Replay por segundo workload | PASS | O teste tenta autenticar novamente com o mesmo RoleID/SecretID e exige `VaultAuthenticationFailed` |
+| Credencial inválida | PASS | O teste tenta login com SecretID sintético inválido e exige `VaultAuthenticationFailed` |
 | Workload resolve Connection persistida | PASS | `VaultSecretResolver` consulta Control DB e deriva o caminho do registro persistido |
 | Referencia arbitraria nao autoriza | PASS | Resolver recebe somente `connection_id`; identidade reconstruida e rejeitada |
 | Cross-domain negado | PASS | Segunda Connection/domínio sintético resultou em `PermissionError` |
@@ -56,12 +58,12 @@ instante em que o Vault e o Control DB estavam ativos:
 
 | Componente | CPU | Memória |
 | --- | ---: | ---: |
-| Vault | 1,41% | 28,34 MiB / 8,652 GiB |
-| Control DB PostgreSQL | 0,06% | 39,2 MiB / 8,652 GiB |
+| Vault | 12,06% | 28,7 MiB / 8,652 GiB |
+| Control DB PostgreSQL | 4,55% | 38,47 MiB / 8,652 GiB |
 | Control API/test runner | efêmero; não estava ativo no snapshot final | não aplicável ao snapshot final |
 | Spark | NÃO APLICÁVEL | SEC-01 não executa pipeline Spark |
 
-- Tempo total medido do runner SEC-01: 77,1 s.
+- Tempo total medido do runner SEC-01: 71,9 s.
 - Cold start isolado: não medido separadamente; está incluído no tempo total.
 - Tempo do restart/unseal: não medido separadamente; está incluído no tempo total.
 - Os números de CPU/memória são uma amostra instantânea, não um peak histórico.
