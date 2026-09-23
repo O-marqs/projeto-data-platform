@@ -86,6 +86,7 @@ class SecretResolver:
     """Contract for SEC-01; this card deliberately provides no resolver."""
 
     def resolve(self, *, secret_ref: str, identity: Identity, domain_id: uuid.UUID) -> str:
+        validate_secret_ref(secret_ref)
         if not identity.can(CONNECTION_RESOLVE, domain_id):
             raise PermissionError("secret resolution is not authorized")
         raise SecretResolutionUnavailable("no secret resolver is configured")

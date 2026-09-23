@@ -72,7 +72,7 @@ O FND-04 usa o Compose `infra/local/control-plane/docker-compose.yml`, com proje
 
 ## Migrations
 
-As migrations sao explicitas e executadas pelo servico `control-migrate`; a API nao cria tabelas automaticamente. A migration atual e `0002_connection`, aplicada depois de `0001_initial_control_plane`, sem alterar a migration inicial.
+As migrations sao explicitas e executadas pelo servico `control-migrate`; a API nao cria tabelas automaticamente. As migrations atuais sao `0001_initial_control_plane`, `0002_connection` e `0003_connection_config_safety`, aplicadas em ordem sem alterar a migration inicial. A terceira adiciona constraints no PostgreSQL para rejeitar chaves sensiveis e credenciais embutidas mesmo em insercoes que nao passem pelo ORM.
 
 ```powershell
 ./scripts/fnd04.ps1 up

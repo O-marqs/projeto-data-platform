@@ -44,7 +44,7 @@ somente metadados publicos e nunca inclui `secret_ref` ou valor secreto.
 | Acesso entre dominios | A identidade precisa conter o `domain_id` da Connection. |
 | Acesso direto por UUID conhecido | A mesma verificacao de dominio e permissao e aplicada ao endpoint por ID. |
 | Ausencia de permissao | Deny by default; somente `connection:read` ou `connection:admin` leem. |
-| Senha em configuracao publica | Chaves e padroes de valores sensiveis sao rejeitados no modelo. |
+| Senha em configuracao publica | Chaves e padroes de valores sensiveis sao rejeitados no modelo e por CHECK constraints do PostgreSQL. |
 | Vazamento em resposta | `secret_ref` nao esta no schema de resposta; erros usam codigos sanitizados. |
 | Vazamento em logs | O log registra somente operacao, IDs de recurso/dominio e decisao. |
 | `secret_ref` como caminho arbitrario | O formato e restrito a identificador opaco `sref_...`. |

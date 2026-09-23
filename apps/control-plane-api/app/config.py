@@ -10,7 +10,7 @@ class Settings(BaseSettings):
         "postgresql+psycopg://control_user:change-me-control-password"
         "@control-db:5432/control_db"
     )
-    required_migration_revision: str = "0002_connection"
+    required_migration_revision: str = "0003_connection_config_safety"
 
     model_config = SettingsConfigDict(
         env_prefix="CONTROL_",

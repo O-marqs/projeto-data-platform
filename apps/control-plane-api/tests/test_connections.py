@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app.config import Settings
@@ -13,6 +14,8 @@ from app.security import (
     CONNECTION_READ,
     CONNECTION_RESOLVE,
     Identity,
+    SecretResolutionUnavailable,
+    SecretResolver,
     get_current_identity,
     validate_public_config,
 )
@@ -73,7 +76,12 @@ def test_missing_identity_is_denied_without_http_identity_headers(settings, db_s
     with TestClient(create_app(settings)) as client:
         response = client.get(
             f"/connections/{connection_id}",
-            headers={"X-User-ID": "synthetic-admin", "X-Domain-ID": "forged"},
+            params={"domain_id": "forged"},
+            headers={
+                "X-User-ID": "synthetic-admin",
+                "X-Domain-ID": "forged",
+                "X-Role": "admin",
+            },
         )
 
     assert response.status_code == 401
@@ -89,7 +97,10 @@ def test_other_domain_is_denied_even_when_connection_id_is_known(settings, db_se
     )
 
     with client_for(settings, other_identity) as client:
-        response = client.get(f"/connections/{connection_id}")
+        response = client.get(
+            f"/connections/{connection_id}",
+            params={"domain_id": str(domain_id)},
+        )
 
     assert response.status_code == 403
     assert response.json() == {"detail": {"code": "connection_access_denied"}}
@@ -145,6 +156,57 @@ def test_public_config_rejects_sensitive_keys_and_connection_strings() -> None:
         validate_public_config({"password": "synthetic-secret"})
     with pytest.raises(ValueError, match="sensitive material"):
         validate_public_config({"endpoint": "postgresql://user:secret@host/db"})
+
+
+def test_database_constraint_rejects_sensitive_config_even_for_direct_sql(db_session) -> None:
+    organization = Organization(slug=slug("org"))
+    db_session.add(organization)
+    db_session.commit()
+    domain = Domain(organization_id=organization.id, slug=slug("domain"))
+    db_session.add(domain)
+    db_session.commit()
+
+    with pytest.raises(IntegrityError):
+        db_session.execute(
+            text(
+                """
+                insert into connections
+                    (domain_id, name, connection_type, config, secret_ref)
+                values
+                    (:domain_id, 'unsafe', 'postgresql', :config, :secret_ref)
+                """
+            ),
+            {
+                "domain_id": domain.id,
+                "config": '{"password": "synthetic-secret"}',
+                "secret_ref": f"sref_{uuid4().hex}",
+            },
+        )
+        db_session.commit()
+    db_session.rollback()
+
+
+def test_secret_resolver_contract_never_returns_a_secret() -> None:
+    resolver = SecretResolver()
+    identity = Identity(
+        subject="synthetic-workload",
+        domain_ids=frozenset({UUID(int=1)}),
+        permissions=frozenset({CONNECTION_RESOLVE}),
+        workload_id="workload-local-test",
+    )
+
+    with pytest.raises(ValueError, match="opaque"):
+        resolver.resolve(
+            secret_ref="/arbitrary/host/path",
+            identity=identity,
+            domain_id=UUID(int=1),
+        )
+    with pytest.raises(SecretResolutionUnavailable):
+        resolver.resolve(
+            secret_ref="sref_0123456789abcdef",
+            identity=identity,
+            domain_id=UUID(int=1),
+        )
 
 
 def test_connection_constraints_reject_invalid_secret_ref_and_duplicate_name(db_session) -> None:

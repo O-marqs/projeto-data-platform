@@ -14,7 +14,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings, get_settings
 from app.db import create_engine_for_settings, create_session_factory, session_dependency
 from app.models import Connection
-from app.security import CONNECTION_READ, Identity, get_current_identity
+from app.security import (
+    CONNECTION_READ,
+    Identity,
+    get_current_identity,
+    validate_public_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +129,31 @@ def create_app(
                 detail={"code": "connection_access_denied"},
             )
 
-        return ConnectionResponse.model_validate(connection)
+        try:
+            public_config = validate_public_config(connection.config)
+        except (TypeError, ValueError):
+            logger.error(
+                "connection_config_invalid",
+                extra={
+                    "operation": "connection.read",
+                    "resource_id": str(connection.id),
+                    "domain_id": str(connection.domain_id),
+                    "decision": "error",
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={"code": "connection_config_invalid"},
+            ) from None
+
+        return ConnectionResponse(
+            id=connection.id,
+            domain_id=connection.domain_id,
+            name=connection.name,
+            connection_type=connection.connection_type,
+            config=public_config,
+            created_at=connection.created_at,
+        )
 
     return app
 

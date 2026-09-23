@@ -23,7 +23,7 @@ services:
       CONTROL_APP_ENV: ${CONTROL_APP_ENV:-local}
       CONTROL_LOG_LEVEL: ${CONTROL_LOG_LEVEL:-INFO}
       CONTROL_DATABASE_URL: postgresql+psycopg://${CONTROL_DB_USER:-control_user}:${CONTROL_DB_PASSWORD:-change-me-control-password}@control-db:5432/${CONTROL_DB_NAME:-control_db}
-      CONTROL_REQUIRED_MIGRATION_REVISION: ${CONTROL_REQUIRED_MIGRATION_REVISION:-0002_connection}
+      CONTROL_REQUIRED_MIGRATION_REVISION: ${CONTROL_REQUIRED_MIGRATION_REVISION:-0003_connection_config_safety}
     depends_on:
       control-db:
         condition: service_healthy
@@ -39,7 +39,7 @@ services:
       CONTROL_APP_ENV: ${CONTROL_APP_ENV:-local}
       CONTROL_LOG_LEVEL: ${CONTROL_LOG_LEVEL:-INFO}
       CONTROL_DATABASE_URL: postgresql+psycopg://${CONTROL_DB_USER:-control_user}:${CONTROL_DB_PASSWORD:-change-me-control-password}@control-db:5432/${CONTROL_DB_NAME:-control_db}
-      CONTROL_REQUIRED_MIGRATION_REVISION: ${CONTROL_REQUIRED_MIGRATION_REVISION:-0002_connection}
+      CONTROL_REQUIRED_MIGRATION_REVISION: ${CONTROL_REQUIRED_MIGRATION_REVISION:-0003_connection_config_safety}
     depends_on:
       control-migrate:
         condition: service_completed_successfully
@@ -60,7 +60,7 @@ services:
       CONTROL_APP_ENV: ${CONTROL_APP_ENV:-local}
       CONTROL_LOG_LEVEL: ${CONTROL_LOG_LEVEL:-INFO}
       CONTROL_DATABASE_URL: postgresql+psycopg://${CONTROL_DB_USER:-control_user}:${CONTROL_DB_PASSWORD:-change-me-control-password}@control-db:5432/${CONTROL_DB_NAME:-control_db}
-      CONTROL_REQUIRED_MIGRATION_REVISION: ${CONTROL_REQUIRED_MIGRATION_REVISION:-0002_connection}
+      CONTROL_REQUIRED_MIGRATION_REVISION: ${CONTROL_REQUIRED_MIGRATION_REVISION:-0003_connection_config_safety}
     depends_on:
       control-api:
         condition: service_healthy
