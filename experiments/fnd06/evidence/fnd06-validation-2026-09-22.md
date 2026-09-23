@@ -5,7 +5,7 @@
 - Sistema operacional: Windows com Docker Desktop e containers Linux.
 - Shell: PowerShell.
 - Compose: Docker Compose v2.
-- Branch: `feat/fnd04-fastapi-control-db-migrations`.
+- Branch: `feat/fnd06-identity-secrets-boundaries`.
 - Base atualizada: `origin/main` em `e7c2cd5` antes da implementação.
 - Commit de código validado: `116c93553d0be13aaa95274681671981eed43484`.
 - Ambiente de testes: projeto descartável `pdp-fnd04-test`, database
