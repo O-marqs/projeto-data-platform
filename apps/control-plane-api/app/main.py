@@ -130,7 +130,7 @@ def create_app(
             )
 
         try:
-            public_config = validate_public_config(connection.config)
+            public_config = validate_public_config(connection.config, connection.connection_type)
         except (TypeError, ValueError):
             logger.error(
                 "connection_config_invalid",

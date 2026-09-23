@@ -151,11 +151,51 @@ def test_sensitive_values_are_not_logged_or_returned(settings, db_session, caplo
     assert str(domain_id) not in response.text
 
 
+def test_invalid_public_config_error_is_sanitized_in_http_and_logs(
+    settings, db_session, caplog, monkeypatch
+) -> None:
+    connection_id, domain_id, _ = create_connection(db_session)
+    marker = "synthetic-invalid-config-marker"
+    identity = Identity(
+        subject="synthetic-reader",
+        domain_ids=frozenset({domain_id}),
+        permissions=frozenset({CONNECTION_READ}),
+    )
+
+    def fail_validation(_, __):
+        raise ValueError(f"invalid configuration: {marker}")
+
+    monkeypatch.setattr("app.main.validate_public_config", fail_validation)
+    caplog.set_level(logging.INFO, logger="app.main")
+    with client_for(settings, identity) as client:
+        response = client.get(f"/connections/{connection_id}")
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": {"code": "connection_config_invalid"}}
+    assert marker not in response.text
+    assert marker not in caplog.text
+
+
 def test_public_config_rejects_sensitive_keys_and_connection_strings() -> None:
+    with pytest.raises(ValueError, match="public schema"):
+        validate_public_config({"password": "synthetic-secret"}, "postgresql")
     with pytest.raises(ValueError, match="sensitive material"):
-        validate_public_config({"password": "synthetic-secret"})
-    with pytest.raises(ValueError, match="sensitive material"):
-        validate_public_config({"endpoint": "postgresql://user:secret@host/db"})
+        validate_public_config({"endpoint": "postgresql://user:secret@host/db"}, "postgresql")
+
+
+def test_public_config_rejects_generic_nested_secret_fields() -> None:
+    marker = "synthetic-generic-secret-marker"
+    with pytest.raises(ValueError, match="public schema"):
+        validate_public_config({"auth": {"value": marker}}, "postgresql")
+
+    with pytest.raises(ValueError, match="public schema"):
+        Connection(
+            domain_id=uuid4(),
+            name="generic-secret",
+            connection_type="postgresql",
+            config={"auth": {"value": marker}},
+            secret_ref=f"sref_{uuid4().hex}",
+        )
 
 
 def test_database_constraint_rejects_sensitive_config_even_for_direct_sql(db_session) -> None:
@@ -178,7 +218,7 @@ def test_database_constraint_rejects_sensitive_config_even_for_direct_sql(db_ses
             ),
             {
                 "domain_id": domain.id,
-                "config": '{"password": "synthetic-secret"}',
+                "config": '{"auth": {"value": "synthetic-generic-secret-marker"}}',
                 "secret_ref": f"sref_{uuid4().hex}",
             },
         )
@@ -186,26 +226,45 @@ def test_database_constraint_rejects_sensitive_config_even_for_direct_sql(db_ses
     db_session.rollback()
 
 
-def test_secret_resolver_contract_never_returns_a_secret() -> None:
+def test_secret_resolver_requires_persisted_connection_and_concrete_workload_scope(db_session) -> None:
+    first_connection_id, first_domain_id, _ = create_connection(db_session)
+    second_connection_id, _, _ = create_connection(db_session)
     resolver = SecretResolver()
-    identity = Identity(
+
+    cross_connection_identity = Identity(
         subject="synthetic-workload",
-        domain_ids=frozenset({UUID(int=1)}),
+        domain_ids=frozenset({first_domain_id}),
         permissions=frozenset({CONNECTION_RESOLVE}),
         workload_id="workload-local-test",
+        connection_ids=frozenset({second_connection_id}),
     )
 
-    with pytest.raises(ValueError, match="opaque"):
+    with pytest.raises(PermissionError, match="not authorized"):
         resolver.resolve(
-            secret_ref="/arbitrary/host/path",
-            identity=identity,
-            domain_id=UUID(int=1),
+            connection_id=first_connection_id,
+            identity=cross_connection_identity,
+            session=db_session,
         )
+
+    authorized_identity = Identity(
+        subject="synthetic-workload",
+        domain_ids=frozenset({first_domain_id}),
+        permissions=frozenset({CONNECTION_RESOLVE}),
+        workload_id="workload-local-test",
+        connection_ids=frozenset({first_connection_id}),
+    )
     with pytest.raises(SecretResolutionUnavailable):
         resolver.resolve(
-            secret_ref="sref_0123456789abcdef",
-            identity=identity,
-            domain_id=UUID(int=1),
+            connection_id=first_connection_id,
+            identity=authorized_identity,
+            session=db_session,
+        )
+
+    with pytest.raises(LookupError, match="not found"):
+        resolver.resolve(
+            connection_id=UUID(int=999),
+            identity=authorized_identity,
+            session=db_session,
         )
 
 

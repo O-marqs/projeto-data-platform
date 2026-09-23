@@ -5,7 +5,7 @@ Base executavel do Control Plane criada no FND-04/PDP-22 e ampliada no FND-06/PD
 ## Escopo implementado
 
 - `GET /health/live`: responde quando o processo HTTP esta vivo, sem consultar o banco.
-- `GET /health/ready`: consulta o Control DB e exige a migration `0001_initial_control_plane` aplicada.
+- `GET /health/ready`: consulta o Control DB e exige a migration atual `0004_connection_public_schema` aplicada.
 - Modelo relacional minimo: Organization, Domain, Team e DataProduct.
 - Modelo Connection pertencente a um Domain, com `secret_ref` opaco e configuracao nao sensivel validada.
 - UUIDs internos, foreign keys e unicidade por escopo no PostgreSQL.
@@ -72,7 +72,7 @@ O FND-04 usa o Compose `infra/local/control-plane/docker-compose.yml`, com proje
 
 ## Migrations
 
-As migrations sao explicitas e executadas pelo servico `control-migrate`; a API nao cria tabelas automaticamente. As migrations atuais sao `0001_initial_control_plane`, `0002_connection` e `0003_connection_config_safety`, aplicadas em ordem sem alterar a migration inicial. A terceira adiciona constraints no PostgreSQL para rejeitar chaves sensiveis e credenciais embutidas mesmo em insercoes que nao passem pelo ORM.
+As migrations sao explicitas e executadas pelo servico `control-migrate`; a API nao cria tabelas automaticamente. As migrations atuais sao `0001_initial_control_plane`, `0002_connection`, `0003_connection_config_safety` e `0004_connection_public_schema`, aplicadas em ordem sem alterar migrations ja aplicadas. A terceira adiciona constraints de defesa contra chaves sensiveis e credenciais embutidas; a quarta limita tipos de Connection, propriedades publicas permitidas e tipos escalares no PostgreSQL, inclusive em insercoes que nao passem pelo ORM.
 
 ```powershell
 ./scripts/fnd04.ps1 up
@@ -135,10 +135,21 @@ sinteticas via `app.dependency_overrides`, mecanismo interno que nao pode ser
 acionado por um cliente HTTP comum. Isso demonstra a fronteira de autorizacao,
 mas nao equivale a autenticacao humana ou de workload.
 
-O contrato `SecretResolver` em `app/security.py` permite ao SEC-01 integrar o
-Vault sem alterar Connection. Nenhum resolvedor real ou valor secreto e
-selecionado no ambiente normal neste card. O SELF-05 integrara Keycloak e OIDC;
-somente depois disso um login humano podera ser habilitado.
+Somente estes tipos sao suportados neste estagio: `postgresql` e `s3`. A
+configuracao publica e uma allowlist plana por tipo: PostgreSQL aceita apenas
+`endpoint`, `database`, `schema`, `port` e `sslmode`; S3 aceita apenas
+`endpoint`, `bucket`, `region`, `path_style` e `use_ssl`. Objetos aninhados,
+listas, propriedades desconhecidas e valores com userinfo/credenciais sao
+rejeitados. `secret_ref` continua sendo uma referencia opaca separada e nao
+substitui um cofre.
+
+O contrato `SecretResolver` recebe somente o ID de uma Connection e uma sessao
+do Control DB. Ele carrega a Connection persistida, confere o dominio, a
+permissao `connection:resolve`, o `workload_id` e a autorizacao para aquele ID
+concreto antes de consultar `secret_ref`. Referencias arbitrarias e IDs de
+outras Connections sao rejeitados. O metodo continua falhando explicitamente
+por nao haver resolvedor real; o SEC-01 podera conectar o Vault sem alterar o
+vinculo da Connection.
 
 ## Logs, parada e limpeza
 
@@ -149,6 +160,13 @@ docker compose --project-name pdp-fnd04 --env-file .env -f infra/local/control-p
 ```
 
 `down` remove apenas os containers do projeto FND-04 e preserva `pdp-fnd04_control_postgres_data`. `clean` remove apenas o volume escopado ao projeto em uso. Nenhum desses comandos usa o projeto Compose, volume ou container do FND-01/FND-02. Ao usar um `ProjectName` alternativo, o Compose cria um volume igualmente escopado a esse projeto.
+
+O Compose fixa a revisao esperada em `0004_connection_public_schema`. Isso evita
+que um `.env` persistente antigo com `CONTROL_REQUIRED_MIGRATION_REVISION=0001_initial_control_plane`
+rebaixe a expectativa da API depois do upgrade. O procedimento de atualizacao
+preserva o volume: suba o banco, execute `control-migrate` ate `head` e somente
+entao inicie a API. Enquanto o banco estiver abaixo de `0004`, `/health/ready`
+responde `503` com `migrations_not_current`; apos a migration, responde `200`.
 
 ## Portabilidade e limitacoes
 

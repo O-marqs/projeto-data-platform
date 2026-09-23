@@ -44,16 +44,18 @@ somente metadados publicos e nunca inclui `secret_ref` ou valor secreto.
 | Acesso entre dominios | A identidade precisa conter o `domain_id` da Connection. |
 | Acesso direto por UUID conhecido | A mesma verificacao de dominio e permissao e aplicada ao endpoint por ID. |
 | Ausencia de permissao | Deny by default; somente `connection:read` ou `connection:admin` leem. |
-| Senha em configuracao publica | Chaves e padroes de valores sensiveis sao rejeitados no modelo e por CHECK constraints do PostgreSQL. |
+| Campo generico transporta segredo | A configuracao e uma allowlist plana por tipo (`postgresql` ou `s3`); propriedades desconhecidas, objetos aninhados, listas e tipos escalares incorretos sao rejeitados no modelo e por CHECK constraints do PostgreSQL. |
+| Senha em configuracao publica | A allowlist e complementada por rejeicao de userinfo, bearer e padroes de credenciais no modelo e por CHECK constraints existentes. |
 | Vazamento em resposta | `secret_ref` nao esta no schema de resposta; erros usam codigos sanitizados. |
 | Vazamento em logs | O log registra somente operacao, IDs de recurso/dominio e decisao. |
 | `secret_ref` como caminho arbitrario | O formato e restrito a identificador opaco `sref_...`. |
-| Resolver falso selecionado em silencio | Nao existe resolvedor configurado; o contrato falha explicitamente. |
+| Resolver recebe ref ou dominio arbitrario | O contrato recebe o ID da Connection, carrega o registro persistido e exige dominio, `connection:resolve`, `workload_id` e autorizacao para o ID concreto. |
+| Resolver falso selecionado em silencio | Nao existe resolvedor configurado; o contrato falha explicitamente depois da autorizacao. |
 
 ## Limites conhecidos
 
-- A validacao de configuracao e uma barreira de contrato para o conjunto de
-  padroes conhecidos; nao substitui classificacao de dados ou DLP.
+- A allowlist de configuracao cobre somente os tipos e campos necessarios neste
+  estagio; nao substitui classificacao de dados, DLP ou um cofre.
 - O banco local usa credenciais de laboratorio, sem TLS e sem isolamento de
   usuario de sistema operacional.
 - Nao ha autenticacao real, rotacao, auditoria, rate limiting ou observabilidade
@@ -63,9 +65,10 @@ somente metadados publicos e nunca inclui `secret_ref` ou valor secreto.
 
 ## Responsabilidades futuras
 
-**Implementado neste card:** modelo Connection, migration incremental, regras
-de dominio, leitura autorizada, contrato de `secret_ref`, protecao basica de
-respostas/logs e testes de fronteira.
+**Implementado neste card:** modelo Connection, migrations incrementais,
+allowlist publica por tipo, regras de dominio, leitura autorizada, contrato de
+`secret_ref` ancorado na Connection persistida, protecao de respostas/logs e
+testes de fronteira.
 
 **Futuro SEC-01 / PDP-105:** Vault local, autenticacao tecnica do runtime,
 resolucao real e entrega controlada do valor secreto ao workload autorizado.
