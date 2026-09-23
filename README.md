@@ -14,6 +14,7 @@ Construir uma plataforma de dados reproduzivel, segura e evolutiva. A fundacao a
 | FND-02 | IMPLEMENTADO | [matriz de versoes](docs/architecture/fnd02-version-matrix.md) e [evidencia FND-02](experiments/fnd02/evidence/fnd02-validation-2026-09-21.md) |
 | FND-03 | IMPLEMENTADO neste card | [organizacao do monorepo](docs/architecture/monorepo-organization.md) |
 | FND-04 | IMPLEMENTADO neste card | [evidencia FND-04](experiments/fnd04/evidence/fnd04-validation-2026-09-21.md) |
+| FND-06 | IMPLEMENTADO neste card | [evidencia FND-06](experiments/fnd06/evidence/fnd06-validation-2026-09-22.md) |
 | Control Plane API | IMPLEMENTADO: base FastAPI, health/readiness e migrations | [apps/control-plane-api/README.md](apps/control-plane-api/README.md) |
 | Portal | ESTRUTURA RESERVADA PARA EVOLUCAO | [apps/portal/README.md](apps/portal/README.md) |
 | Contratos compartilhados | ESTRUTURA RESERVADA PARA EVOLUCAO | [libs/platform-contracts/README.md](libs/platform-contracts/README.md) |
@@ -41,6 +42,7 @@ experiments/
 docs/
   adr/                   Decisoes arquiteturais
   architecture/         Matrizes e regras da arquitetura
+  security/              Threat models e fronteiras de seguranca
   jira/                  Rastreabilidade com Jira
 tests/
   fixtures/              Area reservada para fixtures
@@ -110,4 +112,7 @@ Leia [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir uma mudanca. O arquivo de
 
 ## Proximos passos
 
-O FND-04 implementa somente a base FastAPI, Control DB, migrations e diagnostico local. Pipelines, portal, autenticacao, CI/CD e o restante do Control Plane permanecem fora deste card.
+O FND-04 implementa a base FastAPI, Control DB, migrations e diagnostico local.
+O FND-06 adiciona somente a fronteira minima de Connection, autorizacao por
+dominio e protecao de referencias de segredo. Pipelines, portal, Keycloak,
+Vault, CI/CD e o restante do Control Plane permanecem fora destes cards.

@@ -1,17 +1,19 @@
 # Control Plane API
 
-Base executavel do Control Plane criada no FND-04/PDP-22. Esta entrega fornece uma API FastAPI minima, um banco PostgreSQL dedicado, migrations Alembic e endpoints de health/readiness. Ela nao implementa o Control Plane completo nem endpoints de dominio.
+Base executavel do Control Plane criada no FND-04/PDP-22 e ampliada no FND-06/PDP-24. Esta entrega fornece uma API FastAPI minima, um banco PostgreSQL dedicado, migrations Alembic, a fronteira de Connection e endpoints de health/readiness. Ela nao implementa o Control Plane completo.
 
 ## Escopo implementado
 
 - `GET /health/live`: responde quando o processo HTTP esta vivo, sem consultar o banco.
-- `GET /health/ready`: consulta o Control DB e exige a migration `0001_initial_control_plane` aplicada.
+- `GET /health/ready`: consulta o Control DB e exige a migration atual `0004_connection_public_schema` aplicada.
 - Modelo relacional minimo: Organization, Domain, Team e DataProduct.
+- Modelo Connection pertencente a um Domain, com `secret_ref` opaco e configuracao nao sensivel validada.
 - UUIDs internos, foreign keys e unicidade por escopo no PostgreSQL.
 - Migration versionada em `alembic/versions/`.
-- Testes HTTP e constraints executados contra PostgreSQL real no Compose.
+- Autorizacao minima por identidade confiavel, dominio e permissao para leitura de Connection.
+- Testes HTTP, autorizacao, vazamento e constraints executados contra PostgreSQL real no Compose.
 
-Nao implementado: CRUD, autenticacao, autorizacao, membership, RBAC, datasets, pipelines, runs, contratos, auditoria, outbox, workers ou integracao com Polaris.
+Nao implementado: Keycloak, Vault, login humano, autenticacao real, CRUD completo, membership, RBAC corporativo, datasets, pipelines, runs, contratos, auditoria, outbox, workers ou integracao com Polaris.
 
 ## Estrutura
 
@@ -20,7 +22,8 @@ apps/control-plane-api/
   app/
     config.py       configuracao tipada por ambiente
     db.py           engine e sessoes SQLAlchemy
-    models.py       modelo relacional do FND-04
+    models.py       modelo relacional do FND-04/FND-06
+    security.py     identidade, autorizacao e fronteira de segredos
     main.py         composicao FastAPI e health/readiness
   alembic/
     env.py
@@ -69,7 +72,7 @@ O FND-04 usa o Compose `infra/local/control-plane/docker-compose.yml`, com proje
 
 ## Migrations
 
-As migrations sao explicitas e executadas pelo servico `control-migrate`; a API nao cria tabelas automaticamente.
+As migrations sao explicitas e executadas pelo servico `control-migrate`; a API nao cria tabelas automaticamente. As migrations atuais sao `0001_initial_control_plane`, `0002_connection`, `0003_connection_config_safety` e `0004_connection_public_schema`, aplicadas em ordem sem alterar migrations ja aplicadas. A terceira adiciona constraints de defesa contra chaves sensiveis e credenciais embutidas; a quarta limita tipos de Connection, propriedades publicas permitidas e tipos escalares no PostgreSQL, inclusive em insercoes que nao passem pelo ORM.
 
 ```powershell
 ./scripts/fnd04.ps1 up
@@ -112,6 +115,42 @@ Invoke-WebRequest http://127.0.0.1:8000/health/ready
 
 As respostas nao exibem connection string, senha ou detalhes internos do banco.
 
+## Connection e autorizacao
+
+`Connection` representa uma conexao logica pertencente a um `Domain`. O modelo
+armazena `name`, `connection_type`, uma configuracao JSON somente publica e um
+`secret_ref` opaco no formato `sref_...`. O valor do segredo, senha, token,
+connection string com credencial e headers nunca pertencem ao Control DB ou a
+resposta HTTP. A configuracao rejeita chaves e valores que indiquem material
+secreto; esta e uma barreira de contrato, nao um cofre.
+
+O endpoint minimo `GET /connections/{id}` exige uma identidade confiavel com
+permissao `connection:read` no mesmo dominio. `connection:admin` inclui leitura;
+`connection:resolve` e reservado para o futuro resolvedor de segredos. Ausencia
+de identidade, permissao ou escopo resulta em negacao. O endpoint nao aceita
+`X-User-ID`, `X-Domain-ID`, `X-Role` ou qualquer header como prova de identidade.
+
+Hoje `get_current_identity` nega por padrao. Os testes injetam identidades
+sinteticas via `app.dependency_overrides`, mecanismo interno que nao pode ser
+acionado por um cliente HTTP comum. Isso demonstra a fronteira de autorizacao,
+mas nao equivale a autenticacao humana ou de workload.
+
+Somente estes tipos sao suportados neste estagio: `postgresql` e `s3`. A
+configuracao publica e uma allowlist plana por tipo: PostgreSQL aceita apenas
+`endpoint`, `database`, `schema`, `port` e `sslmode`; S3 aceita apenas
+`endpoint`, `bucket`, `region`, `path_style` e `use_ssl`. Objetos aninhados,
+listas, propriedades desconhecidas e valores com userinfo/credenciais sao
+rejeitados. `secret_ref` continua sendo uma referencia opaca separada e nao
+substitui um cofre.
+
+O contrato `SecretResolver` recebe somente o ID de uma Connection e uma sessao
+do Control DB. Ele carrega a Connection persistida, confere o dominio, a
+permissao `connection:resolve`, o `workload_id` e a autorizacao para aquele ID
+concreto antes de consultar `secret_ref`. Referencias arbitrarias e IDs de
+outras Connections sao rejeitados. O metodo continua falhando explicitamente
+por nao haver resolvedor real; o SEC-01 podera conectar o Vault sem alterar o
+vinculo da Connection.
+
 ## Logs, parada e limpeza
 
 ```powershell
@@ -122,10 +161,21 @@ docker compose --project-name pdp-fnd04 --env-file .env -f infra/local/control-p
 
 `down` remove apenas os containers do projeto FND-04 e preserva `pdp-fnd04_control_postgres_data`. `clean` remove apenas o volume escopado ao projeto em uso. Nenhum desses comandos usa o projeto Compose, volume ou container do FND-01/FND-02. Ao usar um `ProjectName` alternativo, o Compose cria um volume igualmente escopado a esse projeto.
 
+O Compose fixa a revisao esperada em `0004_connection_public_schema`. Isso evita
+que um `.env` persistente antigo com `CONTROL_REQUIRED_MIGRATION_REVISION=0001_initial_control_plane`
+rebaixe a expectativa da API depois do upgrade. O procedimento de atualizacao
+preserva o volume: suba o banco, execute `control-migrate` ate `head` e somente
+entao inicie a API. Enquanto o banco estiver abaixo de `0004`, `/health/ready`
+responde `503` com `migrations_not_current`; apos a migration, responde `200`.
+
 ## Portabilidade e limitacoes
 
 O Control Plane depende somente de `CONTROL_DATABASE_URL` e de seu schema/migrations. Hoje ele usa uma instância PostgreSQL em container separado do Polaris para reduzir acoplamento local. No futuro, os databases podem compartilhar uma instância PostgreSQL, mantendo usuarios, databases e migrations independentes; isso nao foi implantado nem homologado em nuvem neste card.
 
 As foreign keys usam a politica padrao restritiva do PostgreSQL: nao ha `ON DELETE CASCADE` na migration. A remocao de uma Organization ou Domain com dependentes deve ser tratada explicitamente por uma futura capability de governanca; esta base nao apaga dados em cascata.
 
-A API e destinada ao laboratorio local. Nao ha autenticacao, autorizacao, TLS, rede publica ou garantia de seguranca para exposicao na internet.
+A API e destinada ao laboratorio local. A autorizacao de Connection existe no
+backend, mas nao ha autenticacao real, Keycloak, Vault, TLS, rede publica ou
+garantia de seguranca para exposicao na internet. A resolucao real de segredos,
+autenticacao tecnica do runtime e login humano permanecem nos cards SEC-01 e
+SELF-05.
