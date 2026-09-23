@@ -1,91 +1,98 @@
-# Evidência FND-06 / PDP-24
+# Evidencia FND-06 / PDP-24
 
 ## Ambiente
 
+- Data da execucao: 2026-09-22.
 - Sistema operacional: Windows com Docker Desktop e containers Linux.
 - Shell: PowerShell.
-- Compose: Docker Compose v2.
+- Docker Compose: v2.
 - Branch: `feat/fnd06-identity-secrets-boundaries`.
-- Base atualizada: `origin/main` em `e7c2cd5` antes da implementação.
-- Commit de código validado: `116c93553d0be13aaa95274681671981eed43484`.
-- Ambiente de testes: projeto descartável `pdp-fnd04-test`, database
-  `control_test_db`, volume `pdp-fnd04-test_control_postgres_data`.
+- Base comparada: `origin/main` em `e7c2cd5`.
+- Commit de codigo efetivamente validado: `7c7bff9c7652837620a5e7885dbd37b8b2434c51`.
+- Ambiente de testes: projeto descartavel `pdp-fnd04-test`, database
+  `control_test_db`, volume `pdp-fnd04-test_control_postgres_data`, portas
+  `8001/5434`.
 - Ambiente normal: projeto `pdp-fnd04`, database `control_db`, volume
-  `pdp-fnd04_control_postgres_data`.
+  `pdp-fnd04_control_postgres_data`, portas `8000/5433`.
+- Ambiente de upgrade: projeto descartavel `pdp-fnd06-upgrade-20260922`, com
+  database, volume e porta exclusivos.
 
-## Componentes alterados
+## Componentes e alteracoes validadas
 
-- Modelo SQLAlchemy `Connection` e validação de configuração/`secret_ref`.
-- Migrations Alembic `0002_connection` e `0003_connection_config_safety`, encadeadas após `0001_initial_control_plane`.
-- Endpoint protegido `GET /connections/{id}`.
-- Fronteira de identidade confiável e contrato sem resolvedor real de segredos.
-- Testes de autorização, constraints, respostas e logs.
-- README e threat model.
+- Allowlist plana de configuracao publica por tipo (`postgresql` e `s3`) no
+  modelo, na aplicacao e em constraints PostgreSQL.
+- Nova migration incremental `0004_connection_public_schema`; migrations
+  anteriores nao foram alteradas.
+- `SecretResolver` ancorado em uma Connection persistida, com autorizacao por
+  dominio, permissao, workload e ID concreto da Connection.
+- Compose fixa a revisao atual `0004_connection_public_schema`, impedindo que
+  um `.env` antigo reduza silenciosamente a expectativa de readiness.
+- README, threat model e testes atualizados.
 
-## Resultados
+## Criterios
 
-| Critério | Resultado | Evidência |
+| Criterio | Resultado | Evidencia |
 | --- | --- | --- |
-| Migration nova preserva `0001` | PASS | `alembic_version=0003_connection_config_safety` no volume normal existente |
-| Migration funciona em instalação limpa | PASS | Suíte Compose descartável criou schema do zero |
-| Connection pertence a Domain | PASS | foreign key e teste de domínio |
-| Unicidade por domínio | PASS | `uq_connections_domain_name` e teste negativo |
-| `secret_ref` opaco persiste sem valor secreto | PASS | formato `sref_...`, sem campo na resposta |
-| Configuração pública rejeita material sensível | PASS | ORM e CHECK constraints rejeitam chaves e connection string sintética |
-| Identidade autorizada lê Connection | PASS | HTTP 200 no mesmo domínio |
-| Identidade sem permissão é negada | PASS | HTTP 403 |
-| Outro domínio é negado por ID direto | PASS | HTTP 403 |
-| Requisição sem identidade confiável é negada | PASS | HTTP 401 |
-| Headers de identidade forjados não funcionam | PASS | headers `X-*` ignorados |
-| `connection:admin` pode ler; resolve não lê | PASS | matriz de permissões |
-| Resposta não contém secret_ref/segredo | PASS | teste de contrato HTTP |
-| Logs não contêm marcador secreto | PASS | teste com header sintético e `caplog` |
-| `./scripts/fnd04.ps1 test` | PASS | `17 passed`, 1 warning externo |
-| Execução contra Compose normal é bloqueada | PASS | exit code `1` no fixture antes dos DELETEs |
-| Sentinela normal preservado | PASS | `sentinel-fnd06-20260922-7d5a|active` após a suíte |
-| Volume normal preservado | PASS | `pdp-fnd04_control_postgres_data`, criado em `2026-09-22T18:26:49Z` |
-| Volumes FND-01 preservados | PASS | `pdp_fnd01_postgres_data` e `pdp_fnd01_rustfs_data` sem alteração |
+| `docker compose config --quiet` | PASS | Compose do Control Plane validado antes e depois das alteracoes |
+| Suite completa FND-04/FND-06 | PASS | Duas execucoes independentes: `21 passed`, `1 warning` em cada |
+| Allowlist publica por tipo | PASS | Somente campos documentados de PostgreSQL/S3 sao aceitos |
+| Campo sensivel sob nome generico | PASS | `auth.value` sintetico rejeitado pela aplicacao e pelo modelo |
+| Insercao SQL direta indevida | PASS | Constraint `ck_connections_config_public_allowlist` rejeitou JSON aninhado |
+| Marcador secreto ausente da resposta HTTP | PASS | Testes de resposta autorizada e negada |
+| Marcador ausente de logs e erros | PASS | Teste de erro de validacao retorna apenas `connection_config_invalid` |
+| Negacao HTTP 403 | PASS | Permissoes ausentes, dominio cruzado e IDs fora do escopo |
+| Resolver parte de Connection persistida | PASS | O contrato recebe `connection_id` e carrega o registro no Control DB |
+| Resolver rejeita conexao cruzada | PASS | Identidade com permissao para outra Connection foi negada |
+| Resolver exige workload concreto | PASS | Identidade sem `workload_id` nao atende o contrato |
+| Configuracao legada `0001` | PASS | `Settings` normaliza revisoes legadas para a revisao atual |
+| Readiness com migration pendente | PASS | Teste unitario e ambiente real responderam HTTP 503 |
+| Upgrade incremental `0001 -> 0004` | PASS | Migration aplicada em ordem sem apagar a organizacao sintetica |
+| Readiness apos upgrade | PASS | Ambiente de upgrade respondeu HTTP 200 |
+| Dados preexistentes preservados no upgrade | PASS | `fnd06-upgrade-sentinel|active` permaneceu apos `alembic upgrade head` |
+| Readiness do ambiente normal | PASS | `pdp-fnd04` respondeu HTTP 200 apos a migration |
+| Sentinela do Control DB normal | PASS | `sentinel-fnd06-20260922-7d5a|active` permaneceu |
+| Volume normal preservado | PASS | `pdp-fnd04_control_postgres_data` manteve `CreatedAt=2026-09-22T18:26:49Z` |
+| Volumes FND-01 preservados | PASS | `pdp_fnd01_postgres_data` e `pdp_fnd01_rustfs_data` permaneceram presentes |
+| Limpeza destrutiva no ambiente normal | PASS | Nao executado `down --volumes` no projeto normal |
+| Credenciais reais versionadas | PASS | Apenas valores sinteticos em `.env.example` e testes |
+| Vault/Keycloak/resolvedor real | NAO APLICAVEL | Explicitamente fora do FND-06 |
 
-## Comandos executados
+## Comandos e resultados
 
 ```powershell
-git fetch origin main
-git merge origin/main
-docker compose --env-file .env.example -f infra/local/control-plane/docker-compose.yml config --quiet
-./scripts/fnd04.ps1 -Action up -ProjectName pdp-fnd04 -EnvFile .env.example
+docker compose --project-name pdp-fnd04 --env-file .env.example -f infra/local/control-plane/docker-compose.yml config --quiet
+./scripts/fnd04.ps1 -Action up -EnvFile .env.example
 ./scripts/fnd04.ps1 -Action test -EnvFile .env.example
-docker compose --project-name pdp-fnd04 --env-file .env.example -f infra/local/control-plane/docker-compose.yml --profile test run --build --rm control-api-test pytest -q tests/test_connections.py
+./scripts/fnd04.ps1 -Action test -EnvFile .env.example
+./scripts/fnd04.ps1 -Action down -EnvFile .env.example
 git diff --check
 ```
 
-O comando forçado contra o projeto normal falhou deliberadamente no fixture
-com a mensagem de isolamento `CONTROL_APP_ENV=test`/`control_test_db`; o
-sentinela continuou presente e nenhum `DELETE` foi executado contra o Control DB
-normal.
+Os dois testes da suite criaram o projeto e o volume descartaveis, executaram
+as 21 verificacoes e removeram somente esses recursos ao final.
 
-A inserção SQL direta com uma chave `password` sintética também foi rejeitada
-pela constraint `ck_connections_config_public_keys`, demonstrando que a
-proteção não depende somente do ORM. O contrato `SecretResolver` rejeitou uma
-referência de caminho arbitrária e, para uma referência opaca autorizada,
-falhou explicitamente por não haver resolvedor configurado.
+Para o upgrade foi usado um projeto descartavel separado. O banco foi criado
+na revisao `0001_initial_control_plane`, recebeu a organizacao sintetica
+`fnd06-upgrade-sentinel`, respondeu HTTP 503 antes das migrations seguintes,
+recebeu `0002`, `0003` e `0004` em ordem e respondeu HTTP 200 depois. A revisao
+final foi `0004_connection_public_schema` e a organizacao continuou presente.
 
-## Identidade e segredos
+No ambiente normal, a migration foi aplicada sobre o volume existente. O
+sentinela `sentinel-fnd06-20260922-7d5a` permaneceu `active`. O comando final
+foi `down` sem `--volumes`, e o volume normal manteve o mesmo `CreatedAt`.
 
-Os testes usam identidades sinteticas injetadas via `dependency_overrides` no
-processo de teste. O ambiente HTTP normal nao possui essa substituicao. Os
-valores de segredo usados nos testes nao sao reproduzidos nesta evidencia.
-Keycloak, Vault, login humano e resolução real de segredo estão explicitamente
-fora do FND-06.
+## Seguranca e limites
 
-## Itens não executados
+Os marcadores de segredo usados nos testes sao sinteticos e nao sao
+reproduzidos nesta evidencia. O Control DB armazena somente `secret_ref` opaco;
+nenhum valor secreto e retornado pela API. O resolvedor continua indisponivel
+por desenho e falha explicitamente depois da autorizacao correta.
 
-- Confluence DP 03/05/07/14/16/22: indisponível neste ambiente de execução.
-- Jira PDP-24/PDP-105/PDP-39: páginas não acessíveis pelo conector/browser
-  disponível; contratos futuros foram tratados apenas pelos limites fornecidos
-  no card.
-- E2E FND-01/FND-02: não necessário para esta mudança e não executado.
-- Keycloak, Vault, pipeline pessoal, cloud e Kubernetes: fora do escopo.
+Nao foram executados E2E FND-01/FND-02, Vault, Keycloak, pipeline, cloud ou
+Kubernetes. Esses itens estao fora do FND-06. Nao foi feito merge, nao houve
+alteracao de status no Jira e o SEC-01 nao foi iniciado.
 
-## Threat model
+## Documentacao relacionada
 
-Consultar [o threat model do FND-06](../../../docs/security/fnd06-identity-secrets-threat-model.md).
+- [README do Control Plane](../../../apps/control-plane-api/README.md)
+- [Threat model do FND-06](../../../docs/security/fnd06-identity-secrets-threat-model.md)
