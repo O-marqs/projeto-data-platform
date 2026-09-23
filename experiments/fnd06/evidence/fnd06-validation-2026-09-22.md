@@ -7,7 +7,7 @@
 - Compose: Docker Compose v2.
 - Branch: `feat/fnd04-fastapi-control-db-migrations`.
 - Base atualizada: `origin/main` em `e7c2cd5` antes da implementação.
-- Commit de código validado: `5e5249a96b564cb3212a965560d8544a7880a548`.
+- Commit de código validado: `116c93553d0be13aaa95274681671981eed43484`.
 - Ambiente de testes: projeto descartável `pdp-fnd04-test`, database
   `control_test_db`, volume `pdp-fnd04-test_control_postgres_data`.
 - Ambiente normal: projeto `pdp-fnd04`, database `control_db`, volume
@@ -16,7 +16,7 @@
 ## Componentes alterados
 
 - Modelo SQLAlchemy `Connection` e validação de configuração/`secret_ref`.
-- Migration Alembic `0002_connection`, encadeada após `0001_initial_control_plane`.
+- Migrations Alembic `0002_connection` e `0003_connection_config_safety`, encadeadas após `0001_initial_control_plane`.
 - Endpoint protegido `GET /connections/{id}`.
 - Fronteira de identidade confiável e contrato sem resolvedor real de segredos.
 - Testes de autorização, constraints, respostas e logs.
@@ -26,12 +26,12 @@
 
 | Critério | Resultado | Evidência |
 | --- | --- | --- |
-| Migration nova preserva `0001` | PASS | `alembic_version=0002_connection` no volume normal existente |
+| Migration nova preserva `0001` | PASS | `alembic_version=0003_connection_config_safety` no volume normal existente |
 | Migration funciona em instalação limpa | PASS | Suíte Compose descartável criou schema do zero |
 | Connection pertence a Domain | PASS | foreign key e teste de domínio |
 | Unicidade por domínio | PASS | `uq_connections_domain_name` e teste negativo |
 | `secret_ref` opaco persiste sem valor secreto | PASS | formato `sref_...`, sem campo na resposta |
-| Configuração pública rejeita material sensível | PASS | chaves e connection string sintética rejeitadas |
+| Configuração pública rejeita material sensível | PASS | ORM e CHECK constraints rejeitam chaves e connection string sintética |
 | Identidade autorizada lê Connection | PASS | HTTP 200 no mesmo domínio |
 | Identidade sem permissão é negada | PASS | HTTP 403 |
 | Outro domínio é negado por ID direto | PASS | HTTP 403 |
@@ -40,7 +40,7 @@
 | `connection:admin` pode ler; resolve não lê | PASS | matriz de permissões |
 | Resposta não contém secret_ref/segredo | PASS | teste de contrato HTTP |
 | Logs não contêm marcador secreto | PASS | teste com header sintético e `caplog` |
-| `./scripts/fnd04.ps1 test` | PASS | `15 passed`, 1 warning externo |
+| `./scripts/fnd04.ps1 test` | PASS | `17 passed`, 1 warning externo |
 | Execução contra Compose normal é bloqueada | PASS | exit code `1` no fixture antes dos DELETEs |
 | Sentinela normal preservado | PASS | `sentinel-fnd06-20260922-7d5a|active` após a suíte |
 | Volume normal preservado | PASS | `pdp-fnd04_control_postgres_data`, criado em `2026-09-22T18:26:49Z` |
@@ -62,6 +62,12 @@ O comando forçado contra o projeto normal falhou deliberadamente no fixture
 com a mensagem de isolamento `CONTROL_APP_ENV=test`/`control_test_db`; o
 sentinela continuou presente e nenhum `DELETE` foi executado contra o Control DB
 normal.
+
+A inserção SQL direta com uma chave `password` sintética também foi rejeitada
+pela constraint `ck_connections_config_public_keys`, demonstrando que a
+proteção não depende somente do ORM. O contrato `SecretResolver` rejeitou uma
+referência de caminho arbitrária e, para uma referência opaca autorizada,
+falhou explicitamente por não haver resolvedor configurado.
 
 ## Identidade e segredos
 
